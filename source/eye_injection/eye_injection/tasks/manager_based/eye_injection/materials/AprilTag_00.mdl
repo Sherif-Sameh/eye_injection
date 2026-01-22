@@ -1,0 +1,17 @@
+// exported by: omni.mdl.usd_converter [1.0.30]
+// --/exts/omni.mdl.usd_converter/allowRelativeExports=True
+// --/exts/omni.mdl.usd_converter/allowRelativeExportUpwardLevels=-1
+
+mdl 1.8;
+
+import ::state::normal;
+import ::ZDDhttps_3A_2F::Z58omniverse_2Dcontent_2Dproduction_2Es3_2Dus_2Dwest_2D2_2Eamazonaws_2Ecom::Assets::Isaac::ZCE_35_2E1::Isaac::Materials::AprilTag::AprilTag::AprilTag;
+import ::tex::gamma_mode;
+
+export material AprilTag_00(*)
+ = ZDDhttps_3A_2F::Z58omniverse_2Dcontent_2Dproduction_2Es3_2Dus_2Dwest_2D2_2Eamazonaws_2Ecom::Assets::Isaac::ZCE_35_2E1::Isaac::Materials::AprilTag::AprilTag::AprilTag(
+    tag_mosaic: texture_2d("./tag36h11.png", ::tex::gamma_default, ""),
+    tag_size: 10,
+    tags_per_row: 24,
+    spacing: 1,
+    tag_id: 0);

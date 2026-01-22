@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import math
+from pathlib import Path
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCollectionCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -16,15 +16,16 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from . import mdp
+from .room_cfg import ROOM_CFG
 
 ##
 # Pre-defined configs
 ##
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
-
+from isaaclab_assets import UR10e_CFG  # isort:skip
 
 ##
 # Scene definition
@@ -35,19 +36,101 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 class EyeInjectionSceneCfg(InteractiveSceneCfg):
     """Configuration for a cart-pole scene."""
 
-    # ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
+    # simple room
+    room = RigidObjectCollectionCfg(
+        rigid_objects={
+            k: v.replace(prim_path="{ENV_REGEX_NS}" + f"/{k}") for k, v in ROOM_CFG.items()
+        }
+    )
+
+    # examination bed
+    bed = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Bed",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=str(Path(__file__).parent / "assets/ExaminationBed.usd"),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.0), rot=(0.7071, 0.0, 0.0, -0.7071),
+        ),
+    )
+
+    # robot stand
+    stand = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Stand",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(1.4, 1.4, 2.0)
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(0.15, 0.7, 1.05),
+        ),
     )
 
     # robot
-    robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = UR10e_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=UR10e_CFG.spawn.replace(
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                disable_gravity=True,
+                max_depenetration_velocity=5.0,
+            ),
+        ),
+        init_state=ArticulationCfg.InitialStateCfg(
+            joint_pos={
+                "shoulder_pan_joint": -1.5707963267948966 / 1.5,
+                "shoulder_lift_joint": -1.5707963267948966 / 0.75,
+                "elbow_joint": 1.5707963267948966,
+                "wrist_1_joint": -1.5707963267948966,
+                "wrist_2_joint": -1.5707963267948966,
+                "wrist_3_joint": 0.0,
+            },
+            pos=(0.15, 0.7, 1.05),
+        )
+    )
+
+    # human
+    person = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Person",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/People/Characters/male_adult_construction_03/male_adult_construction_03.usd",
+            scale=(1.0, 1.0, 1.0),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(-0.9, 0.0, 0.95), rot=(0.5, -0.5, 0.5, -0.5),
+        ),
+    )
+
+    # AprilTags
+    marker_1 = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Marker_1",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=str(Path(__file__).parent / "assets/Plane.usd"),
+            scale=(0.1, 0.1, 1.0),
+            visual_material=sim_utils.MdlFileCfg(
+                mdl_path=str(Path(__file__).parent / "materials/AprilTag_00.mdl"),
+            ),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(0.75, 0.2, 0.794),
+        ),
+    )
+    marker_2 = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Marker_2",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=str(Path(__file__).parent / "assets/Plane.usd"),
+            scale=(0.1, 0.1, 1.0),
+            visual_material=sim_utils.MdlFileCfg(
+                mdl_path=str(Path(__file__).parent / "materials/AprilTag_01.mdl"),
+            ),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(0.75, -0.2, 0.794),
+        ),
+    )
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/DomeLight",
-        spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
+    light = AssetBaseCfg(
+        prim_path="/World/light",
+        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
     )
 
 
@@ -59,8 +142,11 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
-
-    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+    
+    # Incremental joint position action configuration
+    joint_effort = mdp.RelativeJointPositionActionCfg(
+        asset_name="robot", joint_names=[".*"], scale=0.0625, use_zero_offset=True
+    )
 
 
 @configclass
@@ -72,11 +158,11 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
+        joint_pos = ObsTerm(func=mdp.joint_pos)
+        joint_vel = ObsTerm(func=mdp.joint_vel)
 
         def __post_init__(self) -> None:
-            self.enable_corruption = False
+            self.enable_corruption = True
             self.concatenate_terms = True
 
     # observation groups
@@ -87,54 +173,29 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
-    # reset
-    reset_cart_position = EventTerm(
+    reset_robot_joints = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
-            "position_range": (-1.0, 1.0),
-            "velocity_range": (-0.5, 0.5),
+            "position_range": (-0.125, 0.125),
+            "velocity_range": (0.0, 0.0),
         },
     )
 
-    reset_pole_position = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
-            "position_range": (-0.25 * math.pi, 0.25 * math.pi),
-            "velocity_range": (-0.25 * math.pi, 0.25 * math.pi),
-        },
-    )
+    # TODO: Add domain randomization for joint stiffness, damping and friction params
 
 
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    # (1) Constant running reward
-    alive = RewTerm(func=mdp.is_alive, weight=1.0)
-    # (2) Failure penalty
+    # (1) Pose tracking reward
+    # (2) Action penalty
+    action = RewTerm(func=mdp.action_l2, weight=-0.005)
+    # (3) Action rate penalty
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.005)
+    # (4) Failure penalty
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
-    # (3) Primary task: keep pole upright
-    pole_pos = RewTerm(
-        func=mdp.joint_pos_target_l2,
-        weight=-1.0,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]), "target": 0.0},
-    )
-    # (4) Shaping tasks: lower cart velocity
-    cart_vel = RewTerm(
-        func=mdp.joint_vel_l1,
-        weight=-0.01,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])},
-    )
-    # (5) Shaping tasks: lower pole angular velocity
-    pole_vel = RewTerm(
-        func=mdp.joint_vel_l1,
-        weight=-0.005,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
-    )
 
 
 @configclass
@@ -143,11 +204,11 @@ class TerminationsCfg:
 
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    # (2) Cart out of bounds
-    cart_out_of_bounds = DoneTerm(
-        func=mdp.joint_pos_out_of_manual_limit,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "bounds": (-3.0, 3.0)},
-    )
+    # (2) Collision Termination
+    # collision = DoneTerm(
+    #     func=mdp.undesired_contacts,
+    #     params={"sensor_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "threshold": 4.0},
+    # )
 
 
 ##
@@ -158,7 +219,7 @@ class TerminationsCfg:
 @configclass
 class EyeInjectionEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: EyeInjectionSceneCfg = EyeInjectionSceneCfg(num_envs=4096, env_spacing=4.0)
+    scene: EyeInjectionSceneCfg = EyeInjectionSceneCfg(num_envs=4096, env_spacing=5.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -172,9 +233,9 @@ class EyeInjectionEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 2
-        self.episode_length_s = 5
+        self.episode_length_s = 20.0
         # viewer settings
-        self.viewer.eye = (8.0, 0.0, 5.0)
+        self.viewer.eye = (-2.0, -2.0, 6.0)
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
