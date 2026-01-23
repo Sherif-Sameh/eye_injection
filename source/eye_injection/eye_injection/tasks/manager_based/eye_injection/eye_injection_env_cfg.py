@@ -15,6 +15,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -87,6 +88,24 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
         )
     )
 
+    # wrist camera
+    camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link/camera",
+        update_period=0.1,
+        height=480,
+        width=640,
+        data_types=["rgb"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0,
+            focus_distance=400.0,
+            horizontal_aperture=20.955,
+            clipping_range=(0.1, 1.0e5),
+        ),
+        offset=CameraCfg.OffsetCfg(
+            pos=(-0.06, 0.0, -0.035), rot=(1.0, 0.0, 0.0, 0.0), convention="ros",
+        ),
+    )
+
     # human
     person = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Person",
@@ -133,6 +152,12 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
     )
 
+    def __post_init__(self):
+        # Disable PD joint position tracking to allow for pure joint torque control
+        for key in self.robot.actuators:
+            self.robot.actuators[key].stiffness = 0.0
+            self.robot.actuators[key].damping = 0.0
+
 
 ##
 # MDP settings
@@ -143,9 +168,27 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
     
-    # Incremental joint position action configuration
-    joint_effort = mdp.RelativeJointPositionActionCfg(
-        asset_name="robot", joint_names=[".*"], scale=0.0625, use_zero_offset=True
+    # Joint torque action configuration
+    # Joint limits are extracted from the UR10e's URDF file
+    joint_effort = mdp.JointEffortActionCfg(
+        asset_name="robot",
+        joint_names=[".*"],
+        clip={
+            "shoulder_pan_joint": (-330.0, 330.0),
+            "shoulder_lift_joint": (-330.0, 330.0),
+            "elbow_joint": (-150.0, 150.0),
+            "wrist_1_joint": (-56.0, 56.0),
+            "wrist_2_joint": (-56.0, 56.0),
+            "wrist_3_joint": (-56.0, 56.0),
+        },
+        scale={
+            "shoulder_pan_joint": 330.0,
+            "shoulder_lift_joint": 330.0,
+            "elbow_joint": 150.0,
+            "wrist_1_joint": 56.0,
+            "wrist_2_joint": 56.0,
+            "wrist_3_joint": 56.0,
+        },
     )
 
 
