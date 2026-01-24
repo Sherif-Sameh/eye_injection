@@ -18,6 +18,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 from . import mdp
 from .room_cfg import ROOM_CFG
@@ -35,7 +36,7 @@ from isaaclab_assets import UR10e_CFG  # isort:skip
 
 @configclass
 class EyeInjectionSceneCfg(InteractiveSceneCfg):
-    """Configuration for a cart-pole scene."""
+    """Configuration for a manipulation eye-injection scene."""
 
     # simple room
     room = RigidObjectCollectionCfg(
@@ -149,7 +150,7 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
     # lights
     light = AssetBaseCfg(
         prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
+        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=1500.0),
     )
 
     def __post_init__(self):
@@ -162,6 +163,14 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
 ##
 # MDP settings
 ##
+
+
+@configclass
+class CommandsCfg:
+    """Command terms for the MDP."""
+
+    # Binary command corresponding to the targeted eye (0 = left, 1 = right)
+    target_eye = mdp.BinaryCommandCfg()
 
 
 @configclass
@@ -197,19 +206,41 @@ class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group."""
+    class PolicyPropCfg(ObsGroup):
+        """Observations for policy proprioceptive sensor group."""
 
         # observation terms (order preserved)
-        joint_pos = ObsTerm(func=mdp.joint_pos)
-        joint_vel = ObsTerm(func=mdp.joint_vel)
+        joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0))
+        joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0))
+        target_eye_command = ObsTerm(
+            func=mdp.generated_commands, params={"command_name": "target_eye"}
+        )
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
+    
+    @configclass
+    class PolicyExtrCfg(ObsGroup):
+        """Observations for policy extroceptive sensor group."""
+
+        # observation terms (order preserved)
+        image = ObsTerm(
+            func=mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("camera"),
+                "data_type": "rgb",
+                "normalize": False,
+            },
+        )
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = False
+            self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy_prop: PolicyPropCfg = PolicyPropCfg()
+    policy_extr: PolicyExtrCfg = PolicyExtrCfg()
 
 
 @configclass
@@ -225,7 +256,7 @@ class EventCfg:
         },
     )
 
-    # TODO: Add domain randomization for joint stiffness, damping and friction params
+    # TODO: Add domain randomization for human scale, position and texture
 
 
 @configclass
@@ -266,6 +297,7 @@ class EyeInjectionEnvCfg(ManagerBasedRLEnvCfg):
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
+    commands: CommandsCfg = CommandsCfg()
     events: EventCfg = EventCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
