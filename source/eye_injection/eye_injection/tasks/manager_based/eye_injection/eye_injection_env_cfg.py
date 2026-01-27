@@ -14,8 +14,9 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg
+from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
@@ -111,7 +112,7 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
     person = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Person",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/People/Characters/male_adult_construction_03/male_adult_construction_03.usd",
+            usd_path=str(Path(__file__).parent / "assets/Person.usd"),
             scale=(1.0, 1.0, 1.0),
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
@@ -171,6 +172,27 @@ class CommandsCfg:
 
     # Binary command corresponding to the targeted eye (0 = left, 1 = right)
     target_eye = mdp.BinaryCommandCfg()
+
+    # Pose command for target pose (not observable to agent)
+    target_pose = mdp.PoseCommandCfg(
+        asset_name="robot",
+        body_name="wrist_3_link",
+        target_prim_names=(
+            "/World/envs/env_.*/Person/Person/Root/EyeLeft",
+            "/World/envs/env_.*/Person/Person/Root/EyeRight",
+        ),
+        source_prim_name="/World/envs/env_.*/Robot/base_link",
+        binary_command_name="target_eye",
+        motion_cfg=mdp.PoseCommandCfg.MotionCfg(
+            pose_tol=(0.1, 0.1),
+            target_offset=0.1,
+            approach_offset=0.3,
+            approach_vel=0.05,
+            stationary_time=4.0,
+            retreat_vel=0.1,
+        ),
+        debug_vis=False,
+    )
 
 
 @configclass
@@ -232,6 +254,7 @@ class ObservationsCfg:
                 "data_type": "rgb",
                 "normalize": False,
             },
+            history_length=0,
         )
 
         def __post_init__(self) -> None:

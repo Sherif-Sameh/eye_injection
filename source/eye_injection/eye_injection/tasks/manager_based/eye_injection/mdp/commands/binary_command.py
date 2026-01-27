@@ -11,7 +11,7 @@ import torch
 from isaaclab.managers import CommandTerm
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedRLEnv
 
     from .commands_cfg import BinaryCommandCfg
 
@@ -25,7 +25,7 @@ class BinaryCommand(CommandTerm):
     cfg: BinaryCommandCfg
     """Configuration for the command generator."""
 
-    def __init__(self, cfg: BinaryCommandCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: BinaryCommandCfg, env: ManagerBasedRLEnv):
         """Initialize the command generator class.
 
         Args:
@@ -52,7 +52,7 @@ class BinaryCommand(CommandTerm):
 
     @property
     def command(self) -> torch.Tensor:
-        """The desired 2D-pose in base frame. Shape is (num_envs, 4)."""
+        """The desired binary command. Shape is (num_envs, 1)."""
         return self._command
 
     """
