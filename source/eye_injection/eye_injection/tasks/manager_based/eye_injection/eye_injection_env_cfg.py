@@ -90,6 +90,19 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
         )
     )
 
+    # frame transformer for EE w.r.t. robot's base link
+    frame_ee = FrameTransformerCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base_link",
+        visualizer_cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer"),
+        target_frames=[
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link",
+                name="end_effector",
+            ),
+        ],
+        debug_vis=False,
+    )
+
     # wrist camera
     camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link/camera",
@@ -286,12 +299,41 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    # (1) Pose tracking reward
-    # (2) Action penalty
+    # (1) Position tracking reward
+    position_tracking = RewTerm(
+        func=mdp.command_error_staged,
+        weight=-0.5,
+        params={
+            "ft_asset_name": "frame_ee",
+            "command_name": "target_pose",
+            "stage_weights": [0.1, 0.3, 0.8, 0.3, 0.1],
+            "error_fn": mdp.position_command_error,
+            "error_fn_kwargs": {},
+        },
+    )
+    # (2) Orientation tracking reward
+    orientation_tracking = RewTerm(
+        func=mdp.command_error_staged,
+        weight=-0.5,
+        params={
+            "ft_asset_name": "frame_ee",
+            "command_name": "target_pose",
+            "stage_weights": [0.1, 0.3, 0.8, 0.3, 0.1],
+            "error_fn": mdp.orientation_command_error,
+            "error_fn_kwargs": {},
+        },
+    )
+    # (3) Action penalty
     action = RewTerm(func=mdp.action_l2, weight=-0.005)
-    # (3) Action rate penalty
+    # (4) Action rate penalty
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.005)
-    # (4) Failure penalty
+    # (5) Joint velocity penalty
+    joint_vel = RewTerm(
+        func=mdp.joint_vel_l2,
+        weight=-0.0001,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
+    # (6) Failure penalty
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
 
 
