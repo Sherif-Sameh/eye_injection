@@ -16,7 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, FrameTransformerCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, TiledCameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
@@ -42,7 +42,8 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
     # simple room
     room = RigidObjectCollectionCfg(
         rigid_objects={
-            k: v.replace(prim_path="{ENV_REGEX_NS}" + f"/{k}") for k, v in ROOM_CFG.items()
+            k: v.replace(prim_path="{ENV_REGEX_NS}" + f"/{k}")
+            for k, v in ROOM_CFG.items()
         }
     )
 
@@ -53,7 +54,8 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
             usd_path=str(Path(__file__).parent / "assets/ExaminationBed.usd"),
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.0), rot=(0.7071, 0.0, 0.0, -0.7071),
+            pos=(0.0, 0.0, 0.0),
+            rot=(0.7071, 0.0, 0.0, -0.7071),
         ),
     )
 
@@ -61,7 +63,8 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
     stand = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Stand",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(1.4, 1.4, 2.0)
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd",
+            scale=(1.4, 1.4, 2.0),
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=(0.15, 0.7, 1.05),
@@ -76,6 +79,7 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
                 disable_gravity=True,
                 max_depenetration_velocity=5.0,
             ),
+            activate_contact_sensors=True,
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos={
@@ -87,7 +91,7 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
                 "wrist_3_joint": 0.0,
             },
             pos=(0.15, 0.7, 1.05),
-        )
+        ),
     )
 
     # frame transformer for EE w.r.t. robot's base link
@@ -104,8 +108,8 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
     )
 
     # wrist camera
-    camera = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link/camera",
+    camera = TiledCameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link/Camera",
         update_period=0.1,
         height=480,
         width=640,
@@ -116,9 +120,19 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
             horizontal_aperture=20.955,
             clipping_range=(0.1, 1.0e5),
         ),
-        offset=CameraCfg.OffsetCfg(
-            pos=(-0.06, 0.0, -0.035), rot=(1.0, 0.0, 0.0, 0.0), convention="ros",
+        offset=TiledCameraCfg.OffsetCfg(
+            pos=(-0.06, 0.0, -0.035),
+            rot=(1.0, 0.0, 0.0, 0.0),
+            convention="ros",
         ),
+    )
+
+    # contact sensor (for collision checking)
+    contact_forces_robot = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/(?!base_link).*_link",
+        update_period=0.0,
+        history_length=0,
+        debug_vis=False,
     )
 
     # human
@@ -129,7 +143,8 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
             scale=(1.0, 1.0, 1.0),
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(-0.9, 0.0, 0.95), rot=(0.5, -0.5, 0.5, -0.5),
+            pos=(-0.9, 0.0, 0.95),
+            rot=(0.5, -0.5, 0.5, -0.5),
         ),
     )
 
@@ -211,7 +226,7 @@ class CommandsCfg:
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
-    
+
     # Joint torque action configuration
     # Joint limits are extracted from the UR10e's URDF file
     joint_effort = mdp.JointEffortActionCfg(
@@ -254,7 +269,7 @@ class ObservationsCfg:
         def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
-    
+
     @configclass
     class PolicyExtrCfg(ObsGroup):
         """Observations for policy extroceptive sensor group."""
@@ -344,10 +359,10 @@ class TerminationsCfg:
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     # (2) Collision Termination
-    # collision = DoneTerm(
-    #     func=mdp.undesired_contacts,
-    #     params={"sensor_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "threshold": 4.0},
-    # )
+    collision = DoneTerm(
+        func=mdp.illegal_contact,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces_robot"), "threshold": 0.1},
+    )
 
 
 ##
