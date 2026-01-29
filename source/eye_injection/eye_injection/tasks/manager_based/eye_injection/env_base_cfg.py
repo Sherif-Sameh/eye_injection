@@ -6,7 +6,7 @@
 from pathlib import Path
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCollectionCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -16,13 +16,13 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, TiledCameraCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 from . import mdp
-from .room_cfg import ROOM_CFG, GROUND_TEXTURE_PATHS
+from .room_cfg import ROOM_CFG, ROOM_THICKNESS
 
 ##
 # Pre-defined configs
@@ -36,17 +36,15 @@ from isaaclab_assets import UR10e_CFG  # isort:skip
 
 
 @configclass
-class EyeInjectionSceneCfg(InteractiveSceneCfg):
-    """Configuration for a manipulation eye-injection scene."""
+class EyeInjectionSceneBaseCfg(InteractiveSceneCfg):
+    """Configuration for the base manipulation eye-injection scene."""
 
-    # simple room
-    ground = ROOM_CFG["Ground"].replace(prim_path="{ENV_REGEX_NS}/Ground")
-    walls = RigidObjectCollectionCfg(
-        rigid_objects={
-            k: v.replace(prim_path="{ENV_REGEX_NS}" + f"/{k}")
-            for k, v in ROOM_CFG.items()
-            if "Wall" in k
-        }
+    # ground
+    ground = ROOM_CFG["Ground"].replace(
+        prim_path="{ENV_REGEX_NS}/Ground",
+        spawn=ROOM_CFG["Ground"].spawn.replace(
+            size=(3.0, 3.0, ROOM_THICKNESS),
+        ),
     )
 
     # robot
@@ -94,26 +92,6 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
         debug_vis=False,
     )
 
-    # robot wrist camera
-    camera = TiledCameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link/Camera",
-        update_period=0.1,
-        height=480,
-        width=640,
-        data_types=["rgb"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0,
-            focus_distance=400.0,
-            horizontal_aperture=20.955,
-            clipping_range=(0.1, 1.0e5),
-        ),
-        offset=TiledCameraCfg.OffsetCfg(
-            pos=(-0.06, 0.0, -0.035),
-            rot=(1.0, 0.0, 0.0, 0.0),
-            convention="ros",
-        ),
-    )
-
     # contact sensor (for collision checking)
     contact_forces_robot = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/(?!base_link).*_link",
@@ -147,34 +125,6 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    # AprilTags
-    marker_1 = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Bed/Marker_1",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=str(Path(__file__).parent / "assets/Plane.usd"),
-            scale=(0.1, 0.1, 1.0),
-            visual_material=sim_utils.MdlFileCfg(
-                mdl_path=str(Path(__file__).parent / "materials/AprilTag_00.mdl"),
-            ),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.2, 0.75, 0.794),
-        ),
-    )
-    marker_2 = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Bed/Marker_2",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=str(Path(__file__).parent / "assets/Plane.usd"),
-            scale=(0.1, 0.1, 1.0),
-            visual_material=sim_utils.MdlFileCfg(
-                mdl_path=str(Path(__file__).parent / "materials/AprilTag_01.mdl"),
-            ),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(-0.2, 0.75, 0.794),
-        ),
-    )
-
     # lights
     light = AssetBaseCfg(
         prim_path="/World/light",
@@ -194,8 +144,8 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class CommandsCfg:
-    """Command terms for the MDP."""
+class CommandsBaseCfg:
+    """Command terms for the base MDP."""
 
     # Binary command corresponding to the targeted eye (0 = left, 1 = right)
     target_eye = mdp.BinaryCommandCfg()
@@ -223,8 +173,8 @@ class CommandsCfg:
 
 
 @configclass
-class ActionsCfg:
-    """Action specifications for the MDP."""
+class ActionsBaseCfg:
+    """Action specifications for the base MDP."""
 
     # Joint torque action configuration
     # Joint limits are extracted from the UR10e's URDF file
@@ -251,8 +201,8 @@ class ActionsCfg:
 
 
 @configclass
-class ObservationsCfg:
-    """Observation specifications for the MDP."""
+class ObservationsBaseCfg:
+    """Observation specifications for the base MDP."""
 
     @configclass
     class PolicyPropCfg(ObsGroup):
@@ -269,33 +219,13 @@ class ObservationsCfg:
             self.enable_corruption = True
             self.concatenate_terms = True
 
-    @configclass
-    class PolicyExtrCfg(ObsGroup):
-        """Observations for policy extroceptive sensor group."""
-
-        # observation terms (order preserved)
-        image = ObsTerm(
-            func=mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("camera"),
-                "data_type": "rgb",
-                "normalize": False,
-            },
-            history_length=0,
-        )
-
-        def __post_init__(self) -> None:
-            self.enable_corruption = False
-            self.concatenate_terms = True
-
     # observation groups
     policy_prop: PolicyPropCfg = PolicyPropCfg()
-    policy_extr: PolicyExtrCfg = PolicyExtrCfg()
 
 
 @configclass
-class EventCfg:
-    """Configuration for events."""
+class EventBaseCfg:
+    """Configuration for events for the base MDP."""
 
     reset_robot_base = EventTerm(
         func=mdp.reset_root_state_uniform,
@@ -321,17 +251,6 @@ class EventCfg:
         },
     )
 
-    rand_ground_texture = EventTerm(
-        func=mdp.randomize_visual_texture_material,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("ground"),
-            "event_name": "rand_ground_texture",
-            "texture_paths": GROUND_TEXTURE_PATHS,
-            "texture_rotation": (0.0, 6.283185307179586),
-        },
-    )
-
     rand_robot_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="startup",
@@ -346,8 +265,8 @@ class EventCfg:
 
 
 @configclass
-class RewardsCfg:
-    """Reward terms for the MDP."""
+class RewardsBaseCfg:
+    """Reward terms for the base MDP."""
 
     # (1) Position tracking reward
     position_tracking = RewTerm(
@@ -388,8 +307,8 @@ class RewardsCfg:
 
 
 @configclass
-class TerminationsCfg:
-    """Termination terms for the MDP."""
+class TerminationsBaseCfg:
+    """Termination terms for the base MDP."""
 
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -406,19 +325,19 @@ class TerminationsCfg:
 
 
 @configclass
-class EyeInjectionEnvCfg(ManagerBasedRLEnvCfg):
+class EyeInjectionEnvBaseCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: EyeInjectionSceneCfg = EyeInjectionSceneCfg(
-        num_envs=4096, env_spacing=5.0, replicate_physics=False
+    scene: EyeInjectionSceneBaseCfg = EyeInjectionSceneBaseCfg(
+        num_envs=4096, env_spacing=3.0, replicate_physics=False
     )
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
-    events: EventCfg = EventCfg()
+    observations: ObservationsBaseCfg = ObservationsBaseCfg()
+    actions: ActionsBaseCfg = ActionsBaseCfg()
+    commands: CommandsBaseCfg = CommandsBaseCfg()
     # MDP settings
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
+    rewards: RewardsBaseCfg = RewardsBaseCfg()
+    terminations: TerminationsBaseCfg = TerminationsBaseCfg()
+    events: EventBaseCfg = EventBaseCfg()
 
     # Post initialization
     def __post_init__(self) -> None:
