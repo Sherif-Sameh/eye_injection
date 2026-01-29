@@ -1,5 +1,6 @@
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR
 
 
 # Room parameters 
@@ -10,8 +11,8 @@ ROOM_THICKNESS = 0.1
 
 # Room configuration
 ROOM_CFG = {
-    "Floor": RigidObjectCfg(
-        prim_path="/World/Floor",
+    "Ground": RigidObjectCfg(
+        prim_path="/World/Ground",
         spawn=sim_utils.CuboidCfg(
             size=(ROOM_SIZE, ROOM_SIZE, ROOM_THICKNESS),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -97,3 +98,20 @@ ROOM_CFG = {
         ),
     ), 
 }
+
+GROUND_TEXTURE_PATHS = [
+    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
+    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
+    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Oak/Oak_BaseColor.png",
+    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber/Timber_BaseColor.png",
+    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber_Cladding/Timber_Cladding_BaseColor.png",
+    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
+    f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Patterns/nv_bamboo_desktop.jpg",
+    f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Patterns/nv_brick_grey.jpg",
+    f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Patterns/nv_brick_tile.jpg",
+    f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Patterns/nv_concrete_sidewalk_new.jpg",
+    f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Patterns/nv_drywall_painted_aqua.jpg",
+    f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Patterns/nv_plastic_blue.jpg",
+    f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Patterns/nv_tile_square_green.jpg",
+    f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Patterns/nv_wood_boards_brown.jpg",
+]

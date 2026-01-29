@@ -22,7 +22,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 from . import mdp
-from .room_cfg import ROOM_CFG
+from .room_cfg import ROOM_CFG, GROUND_TEXTURE_PATHS
 
 ##
 # Pre-defined configs
@@ -40,35 +40,13 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
     """Configuration for a manipulation eye-injection scene."""
 
     # simple room
-    room = RigidObjectCollectionCfg(
+    ground = ROOM_CFG["Ground"].replace(prim_path="{ENV_REGEX_NS}/Ground")
+    walls = RigidObjectCollectionCfg(
         rigid_objects={
             k: v.replace(prim_path="{ENV_REGEX_NS}" + f"/{k}")
             for k, v in ROOM_CFG.items()
+            if "Wall" in k
         }
-    )
-
-    # examination bed
-    bed = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Bed",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=str(Path(__file__).parent / "assets/ExaminationBed.usd"),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.0),
-            rot=(0.7071, 0.0, 0.0, -0.7071),
-        ),
-    )
-
-    # robot stand
-    stand = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Stand",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd",
-            scale=(1.4, 1.4, 2.0),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.15, 0.7, 1.05),
-        ),
     )
 
     # robot
@@ -94,6 +72,15 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
         ),
     )
 
+    # robot stand
+    stand = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/Stand",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd",
+            scale=(2.0, 2.0, 2.0),
+        ),
+    )
+
     # frame transformer for EE w.r.t. robot's base link
     frame_ee = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base_link",
@@ -107,7 +94,7 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
         debug_vis=False,
     )
 
-    # wrist camera
+    # robot wrist camera
     camera = TiledCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link/Camera",
         update_period=0.1,
@@ -135,22 +122,34 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
         debug_vis=False,
     )
 
+    # examination bed
+    bed = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Bed",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=str(Path(__file__).parent / "assets/ExaminationBed.usd"),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.0),
+            rot=(0.7071, 0.0, 0.0, -0.7071),
+        ),
+    )
+
     # human
     person = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Person",
+        prim_path="{ENV_REGEX_NS}/Bed/Person",
         spawn=sim_utils.UsdFileCfg(
             usd_path=str(Path(__file__).parent / "assets/Person.usd"),
             scale=(1.0, 1.0, 1.0),
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(-0.9, 0.0, 0.95),
-            rot=(0.5, -0.5, 0.5, -0.5),
+            pos=(0.0, -0.9, 0.975),
+            rot=(0.70711, -0.70711, 0.0, 0.0),
         ),
     )
 
     # AprilTags
     marker_1 = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Marker_1",
+        prim_path="{ENV_REGEX_NS}/Bed/Marker_1",
         spawn=sim_utils.UsdFileCfg(
             usd_path=str(Path(__file__).parent / "assets/Plane.usd"),
             scale=(0.1, 0.1, 1.0),
@@ -159,11 +158,11 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
             ),
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.75, 0.2, 0.794),
+            pos=(0.2, 0.75, 0.794),
         ),
     )
     marker_2 = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Marker_2",
+        prim_path="{ENV_REGEX_NS}/Bed/Marker_2",
         spawn=sim_utils.UsdFileCfg(
             usd_path=str(Path(__file__).parent / "assets/Plane.usd"),
             scale=(0.1, 0.1, 1.0),
@@ -172,7 +171,7 @@ class EyeInjectionSceneCfg(InteractiveSceneCfg):
             ),
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.75, -0.2, 0.794),
+            pos=(-0.2, 0.75, 0.794),
         ),
     )
 
@@ -206,8 +205,8 @@ class CommandsCfg:
         asset_name="robot",
         body_name="wrist_3_link",
         target_prim_names=(
-            "/World/envs/env_.*/Person/Person/Root/EyeLeft",
-            "/World/envs/env_.*/Person/Person/Root/EyeRight",
+            "/World/envs/env_.*/Bed/Person/Person/Root/EyeLeft",
+            "/World/envs/env_.*/Bed/Person/Person/Root/EyeRight",
         ),
         source_prim_name="/World/envs/env_.*/Robot/base_link",
         binary_command_name="target_eye",
@@ -298,16 +297,52 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
+    reset_robot_base = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "pose_range": {
+                "x": (-0.05, 0.05),
+                "y": (-0.05, 0.05),
+                "yaw": (-0.15, 0.15),
+            },
+            "velocity_range": {},
+        },
+    )
+
     reset_robot_joints = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
             "position_range": (-0.125, 0.125),
             "velocity_range": (0.0, 0.0),
         },
     )
 
-    # TODO: Add domain randomization for human scale, position and texture
+    rand_ground_texture = EventTerm(
+        func=mdp.randomize_visual_texture_material,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("ground"),
+            "event_name": "rand_ground_texture",
+            "texture_paths": GROUND_TEXTURE_PATHS,
+            "texture_rotation": (0.0, 6.283185307179586),
+        },
+    )
+
+    rand_robot_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "mass_distribution_params": (0.9, 1.1),
+            "operation": "scale",
+            "distribution": "uniform",
+            "recompute_inertia": True,
+        },
+    )
 
 
 @configclass
@@ -373,7 +408,9 @@ class TerminationsCfg:
 @configclass
 class EyeInjectionEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: EyeInjectionSceneCfg = EyeInjectionSceneCfg(num_envs=4096, env_spacing=5.0)
+    scene: EyeInjectionSceneCfg = EyeInjectionSceneCfg(
+        num_envs=4096, env_spacing=5.0, replicate_physics=False
+    )
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

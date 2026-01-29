@@ -164,7 +164,7 @@ class PoseCommand(CommandTerm):
         self.time_left[env_ids] = torch.inf
 
         # sample target pose and approach vector according to the generated binary command
-        binary_command = self.binary_command[env_ids, 0].bool()
+        binary_command = self.binary_command[env_ids].bool()
         self.pose_target_curr[env_ids] = torch.where(
             binary_command, self.pose_target[1][env_ids], self.pose_target[0][env_ids]
         )
