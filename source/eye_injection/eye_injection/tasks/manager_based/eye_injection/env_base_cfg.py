@@ -205,21 +205,32 @@ class ObservationsBaseCfg:
     """Observation specifications for the base MDP."""
 
     @configclass
+    class PolicyCmdCfg(ObsGroup):
+        """Observations for policy commands group."""
+        
+        # observation terms (order preserved)
+        target_eye_command = ObsTerm(
+            func=mdp.generated_commands, params={"command_name": "target_eye"}
+        )
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    @configclass
     class PolicyPropCfg(ObsGroup):
         """Observations for policy proprioceptive sensor group."""
 
         # observation terms (order preserved)
         joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0))
         joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0))
-        target_eye_command = ObsTerm(
-            func=mdp.generated_commands, params={"command_name": "target_eye"}
-        )
-
+        
         def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
 
     # observation groups
+    policy_cmd: PolicyCmdCfg = PolicyCmdCfg()
     policy_prop: PolicyPropCfg = PolicyPropCfg()
 
 
