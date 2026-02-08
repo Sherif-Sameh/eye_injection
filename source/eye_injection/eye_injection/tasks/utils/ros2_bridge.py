@@ -5,14 +5,16 @@ from typing import TYPE_CHECKING
 import torch
 from example_interfaces.msg import Float32MultiArray
 from gymnasium.spaces import Dict
+from isaaclab.sim import PinholeCameraCfg
 from rclpy.node import Node
-from sensor_msgs.msg import Image, JointState
+from sensor_msgs.msg import CameraInfo, Image, JointState
 from trajectory_msgs.msg import JointTrajectory
 
 from isaaclab_assets import UR10e_CFG  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.sensors import TiledCamera
     from torch import Tensor
 
 
@@ -39,20 +41,30 @@ class IsaacLabRos2Bridge(Node):
 
         # Command and observations publishers
         self._pub_cmd = self.create_publisher(
-            Float32MultiArray, "/isaaclab/cmd/target_eye", 10
+            Float32MultiArray, "/isaaclab/command", 10
         )
         self._pub_obs_js = self.create_publisher(
-            JointState, "/isaaclab/obs/joint_states", 10
+            JointState, "/isaaclab/joint_states", 10
         )
         if any(
             [len(space.shape) == 4 for space in env.observation_space.spaces.values()]
-        ):
-            self._pub_obs_img = self.create_publisher(Image, "/isaaclab/obs/image", 10)
+        ):  # has image observations
+            # Camera publishers
+            self._pub_obs_img = self.create_publisher(
+                Image, "/isaaclab/camera/image_raw", 10
+            )
+            self._pub_cam_info = self.create_publisher(
+                CameraInfo, "/isaaclab/camera/camera_info", 10
+            )
+
+            # Initialize camera information and setup timer for publisher
+            self._init_camera_info(env)
+            self._timer_cam_info = self.create_timer(1.0, self.publish_camera_info)
 
         # Action subscriber
         self._sub_acts = self.create_subscription(
             JointTrajectory,
-            "isaaclab/act/joint_torques",
+            "isaaclab/joint_trajectory_controller/joint_trajectory",
             self.action_callback,
             10,
         )
@@ -66,6 +78,51 @@ class IsaacLabRos2Bridge(Node):
         self._action_ctr = 1
         self._action_zero = torch.zeros(*env.action_space.shape, device=env.device)
         self._action_buffer = torch.zeros(1, *env.action_space.shape, device=env.device)
+
+    def _init_camera_info(self, env: ManagerBasedRLEnv) -> None:
+        """Initialize the camera's information to ROS 2 CameraInfo message.
+
+        This function is meant to be used only once during initialization. A CameraInfo message is
+        prepared and stored for use by the publisher's timer callback.
+
+        Args:
+            env: ManagerBasedRLEnv that satifies the above requirements to interface with ROS 2 using
+            the bridge node.
+        """
+        # Retrieve the camera sensor and configuration from environment
+        asset: TiledCamera = env.scene["camera"]
+        pinhole_cfg: PinholeCameraCfg = asset.cfg.spawn
+        assert isinstance(pinhole_cfg, PinholeCameraCfg), (
+            f"Expected pinhole camera config, got {type(pinhole_cfg)}."
+        )
+
+        # Setup CameraInfo message
+        self._msg_cam_info = CameraInfo()
+
+        # Basic properties
+        self._msg_cam_info.height = asset.cfg.height
+        self._msg_cam_info.width = asset.cfg.width
+        self._msg_cam_info.distortion_model = "plumb_bob"
+
+        # Intrinsic camera matrix (K)
+        # [fx, 0,  cx,
+        #  0,  fy, cy,
+        #  0,  0,  1]
+        pixel_size = pinhole_cfg.horizontal_aperture / float(asset.cfg.width)
+        fx = pinhole_cfg.focal_length / pixel_size  # fx = fy
+        self._msg_cam_info.k = [fx, 0.0, 0.0, 0.0, fx, 0.0, 0.0, 0.0, 1.0]
+
+        # Distortion coefficients (no distortion)
+        self._msg_cam_info.d = [0.0, 0.0, 0.0, 0.0, 0.0]
+
+        # Rectification Matrix (3x3 identity for monocular cameras)
+        self._msg_cam_info.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+
+        # Projection Matrix ([K | 0] for monocular cameras)
+        # [fx', 0,   cx', Tx,
+        #  0,   fy', cy', Ty,
+        #  0,   0,   1,   0]
+        self._msg_cam_info.p = self._msg_cam_info.k.tolist() + [0.0, 0.0, 0.0]
 
     def publish_commands(self, cmd: Tensor) -> None:
         """Publish commands to ROS 2 topic of type Float32MultiArray.
@@ -119,6 +176,15 @@ class IsaacLabRos2Bridge(Node):
         msg.step = msg.width * 3  # bytes per row
         msg.data = obs.numpy().tobytes()
         self._pub_obs_img.publish(msg)
+
+    def publish_camera_info(self) -> None:
+        """Publish the camera's information to ROS 2 topic of type CameraInfo.
+
+        Note: **Must** be called after the camera's information has been initialized.
+        """
+        # Set the header's timestamp and publish ready-made message
+        self._msg_cam_info.header.stamp = self.get_clock().now().to_msg()
+        self._pub_cam_info.publish(self._msg_cam_info)
 
     def action_callback(self, msg: JointTrajectory) -> None:
         """Callback function for action subscriber.
