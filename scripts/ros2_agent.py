@@ -47,7 +47,7 @@ from isaaclab_assets import UR10e_CFG  # isort:skip
 from isaaclab_tasks.utils import parse_env_cfg
 
 import eye_injection.tasks  # noqa: F401
-from eye_injection.tasks.utils import IsaacLabRos2Bridge
+from eye_injection.tasks.utils import IsaacLabRos2Bridge, IsaacLabTFBroadcaster
 
 
 def main():
@@ -56,32 +56,31 @@ def main():
     env_cfg = parse_env_cfg(
         args_cli.task, device=args_cli.device, num_envs=1, use_fabric=not args_cli.disable_fabric
     )
-    # create environment
+    # create and reset environment
     env = gym.make(args_cli.task, cfg=env_cfg)
+    obs, info = env.reset()
 
-    # initialize ROS and create ROS 2 bridge node
+    # initialize ROS and create ROS 2 bridge and tf broadcaster nodes
     rclpy.init()
     bridge_node = IsaacLabRos2Bridge(env.unwrapped)
+    tf_broadcaster_node = IsaacLabTFBroadcaster(env.unwrapped)
 
     # print info (this is vectorized environment)
     print(f"[INFO]: Gym observation space: {env.observation_space}")
     print(f"[INFO]: Gym action space: {env.action_space}")
-    # reset environment
-    obs, info = env.reset()
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
-            # Publish commands and observations to ROS 2
+            # publish commands, observations and transforms to ROS 2
             bridge_node.publish_commands(obs["policy_cmd"])
             bridge_node.publish_observations_jointstate(obs["policy_prop"])
-            if "policy_extr" in obs:
-                bridge_node.publish_observations_image(obs["policy_extr"])
-            
-            # Update ROS to check for published actions
+            tf_broadcaster_node.make_robot_transforms(env.unwrapped)
+
+            # update ROS to check for published actions
             rclpy.spin_once(bridge_node, timeout_sec=0)
             
-            # Apply action get observations from environment
+            # apply action get observations from environment
             action = bridge_node.get_action()
             obs, rewards, terminated, truncated, info = env.step(action)
 

@@ -2,17 +2,27 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import carb
+import omni
+import omni.replicator.core as rep
+import omni.syntheticdata._syntheticdata as sd
 import torch
 from example_interfaces.msg import Float32MultiArray
 from gymnasium.spaces import Dict
-from isaaclab.sim import PinholeCameraCfg
+from isaacsim.ros2.bridge import read_camera_info
 from rclpy.node import Node
-from sensor_msgs.msg import CameraInfo, Image, JointState
+from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory
 
-from isaaclab_assets import UR10e_CFG  # isort:skip
+# Warnings disabled from module to prevent repeated harmless warnings
+# related to the following issue: https://github.com/isaac-sim/IsaacSim/issues/403
+# most likely because simulation stepping is handled through IsaacLab's API instead of IsaacSim
+carb.settings.get_settings().set(
+    "/log/channels/isaacsim.core.simulation_manager.plugin", "error"
+)
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import TiledCamera
     from torch import Tensor
@@ -40,89 +50,36 @@ class IsaacLabRos2Bridge(Node):
         super().__init__("isaac_bridge")
 
         # Command and observations publishers
-        self._pub_cmd = self.create_publisher(
-            Float32MultiArray, "/isaaclab/command", 10
-        )
+        self._pub_cmd = self.create_publisher(Float32MultiArray, "/isaaclab/command", 0)
         self._pub_obs_js = self.create_publisher(
-            JointState, "/isaaclab/joint_states", 10
+            JointState, "/isaaclab/joint_states", 0
         )
-        if any(
+        has_camera = any(
             [len(space.shape) == 4 for space in env.observation_space.spaces.values()]
-        ):  # has image observations
-            # Camera publishers
-            self._pub_obs_img = self.create_publisher(
-                Image, "/isaaclab/camera/image_raw", 10
-            )
-            self._pub_cam_info = self.create_publisher(
-                CameraInfo, "/isaaclab/camera/camera_info", 10
-            )
-
-            # Initialize camera information and setup timer for publisher
-            self._init_camera_info(env)
-            self._timer_cam_info = self.create_timer(1.0, self.publish_camera_info)
+        )
+        if has_camera:
+            # Setup camera publishers
+            self._setup_observations_image_publisher(env)
+            self._setup_camera_info_publisher(env)
 
         # Action subscriber
         self._sub_acts = self.create_subscription(
             JointTrajectory,
-            "isaaclab/joint_trajectory_controller/joint_trajectory",
+            "/isaaclab/joint_trajectory_controller/joint_trajectory",
             self.action_callback,
-            10,
+            0,
         )
 
-        # Store joint attributes
-        self._joint_names = list(UR10e_CFG.init_state.joint_pos.keys())
+        # Store robot joint attributes
+        asset: Articulation = env.scene["robot"]
+        self._joint_names = asset.data.joint_names
         self._num_joints = len(self._joint_names)
 
-        # Variables for storing actions (num_steps, 1, act_dim)
+        # Variables for storing actions, buffer shape = (num_steps, 1, act_dim)
         self._device = env.device
         self._action_ctr = 1
         self._action_zero = torch.zeros(*env.action_space.shape, device=env.device)
         self._action_buffer = torch.zeros(1, *env.action_space.shape, device=env.device)
-
-    def _init_camera_info(self, env: ManagerBasedRLEnv) -> None:
-        """Initialize the camera's information to ROS 2 CameraInfo message.
-
-        This function is meant to be used only once during initialization. A CameraInfo message is
-        prepared and stored for use by the publisher's timer callback.
-
-        Args:
-            env: ManagerBasedRLEnv that satifies the above requirements to interface with ROS 2 using
-            the bridge node.
-        """
-        # Retrieve the camera sensor and configuration from environment
-        asset: TiledCamera = env.scene["camera"]
-        pinhole_cfg: PinholeCameraCfg = asset.cfg.spawn
-        assert isinstance(pinhole_cfg, PinholeCameraCfg), (
-            f"Expected pinhole camera config, got {type(pinhole_cfg)}."
-        )
-
-        # Setup CameraInfo message
-        self._msg_cam_info = CameraInfo()
-
-        # Basic properties
-        self._msg_cam_info.height = asset.cfg.height
-        self._msg_cam_info.width = asset.cfg.width
-        self._msg_cam_info.distortion_model = "plumb_bob"
-
-        # Intrinsic camera matrix (K)
-        # [fx, 0,  cx,
-        #  0,  fy, cy,
-        #  0,  0,  1]
-        pixel_size = pinhole_cfg.horizontal_aperture / float(asset.cfg.width)
-        fx = pinhole_cfg.focal_length / pixel_size  # fx = fy
-        self._msg_cam_info.k = [fx, 0.0, 0.0, 0.0, fx, 0.0, 0.0, 0.0, 1.0]
-
-        # Distortion coefficients (no distortion)
-        self._msg_cam_info.d = [0.0, 0.0, 0.0, 0.0, 0.0]
-
-        # Rectification Matrix (3x3 identity for monocular cameras)
-        self._msg_cam_info.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-
-        # Projection Matrix ([K | 0] for monocular cameras)
-        # [fx', 0,   cx', Tx,
-        #  0,   fy', cy', Ty,
-        #  0,   0,   1,   0]
-        self._msg_cam_info.p = self._msg_cam_info.k.tolist() + [0.0, 0.0, 0.0]
 
     def publish_commands(self, cmd: Tensor) -> None:
         """Publish commands to ROS 2 topic of type Float32MultiArray.
@@ -156,35 +113,55 @@ class IsaacLabRos2Bridge(Node):
         msg.velocity = obs[self._num_joints :].tolist()
         self._pub_obs_js.publish(msg)
 
-    def publish_observations_image(self, obs: Tensor) -> None:
-        """Publish image observations to ROS 2 topic of type Image.
+    def _setup_observations_image_publisher(self, env: ManagerBasedRLEnv) -> None:
+        """Setup publisher for rgb image observations through IsaacSim.
 
         Args:
-            obs: Tensor containing the latest image observations to publish.
-                Shape is (1, H, W, 3).
+            env: ManagerBasedRLEnv to interface with ROS 2 using the bridge node.
         """
-        assert obs.dtype == torch.uint8
-        assert obs.ndim == 4 and obs.shape[3] == 3
-        obs = obs[0].cpu().contiguous()
+        camera: TiledCamera = env.scene["camera"]
+        render_product = camera.render_product_paths[0]
 
-        msg = Image()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.height = obs.shape[0]
-        msg.width = obs.shape[1]
-        msg.encoding = "rgb8"
-        msg.is_bigendian = 0
-        msg.step = msg.width * 3  # bytes per row
-        msg.data = obs.numpy().tobytes()
-        self._pub_obs_img.publish(msg)
+        # Link the camera's render product and publish the data to the specified topic name
+        rv = omni.syntheticdata.SyntheticData.convert_sensor_type_to_rendervar(
+            sd.SensorType.Rgb.name
+        )
+        writer = rep.writers.get(rv + "ROS2PublishImage")
+        writer.initialize(
+            frameId="camera_optical_color_frame",
+            nodeNamespace="",
+            queueSize=0,
+            topicName="/isaaclab/camera/image_raw",
+        )
+        writer.attach([render_product])
 
-    def publish_camera_info(self) -> None:
-        """Publish the camera's information to ROS 2 topic of type CameraInfo.
+    def _setup_camera_info_publisher(self, env: ManagerBasedRLEnv) -> None:
+        """Setup publisher for camera's information through IsaacSim.
 
-        Note: **Must** be called after the camera's information has been initialized.
+        Args:
+            env: ManagerBasedRLEnv to interface with ROS 2 using the bridge node.
         """
-        # Set the header's timestamp and publish ready-made message
-        self._msg_cam_info.header.stamp = self.get_clock().now().to_msg()
-        self._pub_cam_info.publish(self._msg_cam_info)
+        camera: TiledCamera = env.scene["camera"]
+        render_product = camera.render_product_paths[0]
+
+        # The following code will link the camera's render product and publish the data to the specified topic name.
+        writer = rep.writers.get("ROS2PublishCameraInfo")
+        camera_info, _ = read_camera_info(render_product_path=render_product)
+        writer.initialize(
+            frameId="camera_optical_color_frame",
+            nodeNamespace="",
+            queueSize=0,
+            topicName="/isaaclab/camera/camera_info",
+            width=camera_info.width,
+            height=camera_info.height,
+            projectionType=camera_info.distortion_model,
+            k=camera_info.k.reshape([1, 9]),
+            r=camera_info.r.reshape([1, 9]),
+            p=camera_info.p.reshape([1, 12]),
+            physicalDistortionModel=camera_info.distortion_model,
+            physicalDistortionCoefficients=camera_info.d,
+        )
+        writer.attach([render_product])
 
     def action_callback(self, msg: JointTrajectory) -> None:
         """Callback function for action subscriber.
@@ -198,7 +175,7 @@ class IsaacLabRos2Bridge(Node):
         self._action_buffer = torch.tensor(
             [point.effort for point in msg.points],
             dtype=torch.float32,
-            device=self.env_device,
+            device=self._device,
         ).unsqueeze(1)
 
     def get_action(self) -> Tensor:
@@ -210,7 +187,7 @@ class IsaacLabRos2Bridge(Node):
             Tensor containing the action to apply to environment. Shape is (1, act_dim).
         """
         if self._action_ctr < self._action_buffer.shape[0]:
-            action = self._action_buffer[self.action_ctr]
+            action = self._action_buffer[self._action_ctr]
             self._action_ctr += 1
         else:
             action = self._action_zero
