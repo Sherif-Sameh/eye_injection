@@ -10,6 +10,7 @@ from isaaclab.utils.math import (
     subtract_frame_transforms,
 )
 from rclpy.node import Node
+from rclpy.time import Time
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros.transform_broadcaster import TransformBroadcaster
 
@@ -98,7 +99,8 @@ class IsaacLabTFBroadcaster(Node):
 
         # Setup transformation object
         t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
+        t_sim = env.common_step_counter * env.step_dt
+        t.header.stamp = Time(seconds=t_sim).to_msg()
         t.header.frame_id = asset.cfg.prim_path.split("/")[-2]
         t.child_frame_id = "camera_optical_color_frame"
 
@@ -129,7 +131,8 @@ class IsaacLabTFBroadcaster(Node):
 
         # Create transforms for each body
         transforms = []
-        stamp = self.get_clock().now().to_msg()
+        t_sim = env.common_step_counter * env.step_dt
+        stamp = Time(seconds=t_sim).to_msg()
         for i, pose_rel in enumerate(body_poses_rel):
             t = TransformStamped()
             t.header.stamp = stamp

@@ -81,38 +81,6 @@ class IsaacLabRos2Bridge(Node):
         self._action_zero = torch.zeros(*env.action_space.shape, device=env.device)
         self._action_buffer = torch.zeros(1, *env.action_space.shape, device=env.device)
 
-    def publish_commands(self, cmd: Tensor) -> None:
-        """Publish commands to ROS 2 topic of type Float32MultiArray.
-
-        Args:
-            cmd: Tensor containing the latest commands to publish. Shape is (1, cmd_dim).
-        """
-        assert cmd.dtype == torch.float32
-        assert cmd.ndim == 2
-        cmd = cmd[0].cpu()
-
-        msg = Float32MultiArray()
-        msg.data = cmd.tolist()
-        self._pub_cmd.publish(msg)
-
-    def publish_observations_jointstate(self, obs: Tensor) -> None:
-        """Publish joint state observations to ROS 2 topic of type JointState.
-
-        Args:
-            obs: Tensor containing the latest joint state observations to publish.
-                Shape is (1, 2 * num_joints).
-        """
-        assert obs.dtype == torch.float32
-        assert obs.ndim == 2 and obs.shape[1] == self._num_joints * 2
-        obs = obs[0].cpu()
-
-        msg = JointState()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.name = self._joint_names
-        msg.position = obs[: self._num_joints].tolist()
-        msg.velocity = obs[self._num_joints :].tolist()
-        self._pub_obs_js.publish(msg)
-
     def _setup_observations_image_publisher(self, env: ManagerBasedRLEnv) -> None:
         """Setup publisher for rgb image observations through IsaacSim.
 
@@ -162,6 +130,38 @@ class IsaacLabRos2Bridge(Node):
             physicalDistortionCoefficients=camera_info.d,
         )
         writer.attach([render_product])
+
+    def publish_commands(self, cmd: Tensor) -> None:
+        """Publish commands to ROS 2 topic of type Float32MultiArray.
+
+        Args:
+            cmd: Tensor containing the latest commands to publish. Shape is (1, cmd_dim).
+        """
+        assert cmd.dtype == torch.float32
+        assert cmd.ndim == 2
+        cmd = cmd[0].cpu()
+
+        msg = Float32MultiArray()
+        msg.data = cmd.tolist()
+        self._pub_cmd.publish(msg)
+
+    def publish_observations_jointstate(self, obs: Tensor) -> None:
+        """Publish joint state observations to ROS 2 topic of type JointState.
+
+        Args:
+            obs: Tensor containing the latest joint state observations to publish.
+                Shape is (1, 2 * num_joints).
+        """
+        assert obs.dtype == torch.float32
+        assert obs.ndim == 2 and obs.shape[1] == self._num_joints * 2
+        obs = obs[0].cpu()
+
+        msg = JointState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.name = self._joint_names
+        msg.position = obs[: self._num_joints].tolist()
+        msg.velocity = obs[self._num_joints :].tolist()
+        self._pub_obs_js.publish(msg)
 
     def action_callback(self, msg: JointTrajectory) -> None:
         """Callback function for action subscriber.

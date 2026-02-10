@@ -73,3 +73,6 @@ tests/
 # pixi environments
 .pixi
 *.egg-info
+
+# .vscode
+.vscode/browse.*
