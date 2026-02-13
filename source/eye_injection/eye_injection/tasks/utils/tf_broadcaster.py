@@ -102,7 +102,7 @@ class IsaacLabTFBroadcaster(Node):
         t_sim = env.common_step_counter * env.step_dt
         t.header.stamp = Time(seconds=t_sim).to_msg()
         t.header.frame_id = asset.cfg.prim_path.split("/")[-2]
-        t.child_frame_id = "camera_optical_color_frame"
+        t.child_frame_id = "camera_color_optical_frame"
 
         t.transform.translation.x = float(pos[0])
         t.transform.translation.y = float(pos[1])

@@ -96,7 +96,7 @@ class IsaacLabRos2Bridge(Node):
         )
         writer = rep.writers.get(rv + "ROS2PublishImage")
         writer.initialize(
-            frameId="camera_optical_color_frame",
+            frameId="camera_color_optical_frame",
             nodeNamespace="",
             queueSize=0,
             topicName="/isaaclab/camera/image_raw",
@@ -116,7 +116,7 @@ class IsaacLabRos2Bridge(Node):
         writer = rep.writers.get("ROS2PublishCameraInfo")
         camera_info, _ = read_camera_info(render_product_path=render_product)
         writer.initialize(
-            frameId="camera_optical_color_frame",
+            frameId="camera_color_optical_frame",
             nodeNamespace="",
             queueSize=0,
             topicName="/isaaclab/camera/camera_info",
