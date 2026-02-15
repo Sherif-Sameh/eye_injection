@@ -7,6 +7,7 @@ from isaaclab.utils import configclass
 
 from .binary_command import BinaryCommand
 from .pose_command import PoseCommand
+from .tag_pose_command import TagPoseCommand
 
 
 @configclass
@@ -38,10 +39,10 @@ class PoseCommandCfg(CommandTermCfg):
 
     source_prim_name: str = MISSING
     """Name of the source primitive for generating pose commands."""
-    
+
     binary_command_name: str = MISSING
     """Name of the binary command generator for determining the target asset."""
-    
+
     make_quat_unique: bool = False
     """Whether to make the quaternion unique or not. Defaults to False.
 
@@ -57,7 +58,7 @@ class PoseCommandCfg(CommandTermCfg):
 
         target_offset: float = MISSING
         """Target offset along the target's negative Z-axis (in m)."""
-        
+
         approach_offset: float = MISSING
         """Approach offset along the target's negative Z-axis (in m)."""
 
@@ -86,6 +87,33 @@ class PoseCommandCfg(CommandTermCfg):
     # Set the scale of the visualization markers to (0.1, 0.1, 0.1)
     goal_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
     current_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+
+    def __post_init__(self):
+        """Post initialization."""
+        # resampling time range is irrelevant since no resampling takes place
+        self.resampling_time_range = (1.0, 1.0)
+
+
+@configclass
+class TagPoseCommandCfg(CommandTermCfg):
+    """Configuration for the tag pose command generator."""
+
+    class_type: type = TagPoseCommand
+
+    camera_asset_name: str = MISSING
+    """Name of the source primitive for generating pose commands."""
+
+    tag_prim_names: list[str] = MISSING
+    """Names of the target tag primitives for generating pose commands."""
+
+    tag_ids: list[int] = MISSING
+    """Corresponding IDs to the target tag primitives of tag_prim_names."""
+
+    pose_source_prim_name: str = MISSING
+    """Name of the source primitive for which original pose commands are generated."""
+
+    pose_command_name: str = MISSING
+    """Name of the pose command generator for determining the original target pose."""
 
     def __post_init__(self):
         """Post initialization."""
