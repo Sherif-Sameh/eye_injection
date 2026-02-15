@@ -207,7 +207,7 @@ class ObservationsBaseCfg:
     @configclass
     class PolicyCmdCfg(ObsGroup):
         """Observations for policy commands group."""
-        
+
         # observation terms (order preserved)
         target_eye_command = ObsTerm(
             func=mdp.generated_commands, params={"command_name": "target_eye"}
@@ -224,7 +224,7 @@ class ObservationsBaseCfg:
         # observation terms (order preserved)
         joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0))
         joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0))
-        
+
         def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
@@ -356,7 +356,8 @@ class EyeInjectionEnvBaseCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.episode_length_s = 20.0
         # viewer settings
-        self.viewer.eye = (-2.0, -2.0, 6.0)
+        self.viewer.eye = (-1.0, 1.0, 4.0)
+        self.viewer.lookat = (0.5, -0.5, 0.5)
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
