@@ -73,6 +73,9 @@ class IsaacLabTFBroadcaster(Node):
         if has_camera:
             self._make_static_camera_transform(env)
 
+        # Check for existence of tag pose command
+        self.has_tag_cmd = "tag_pose" in env.command_manager.active_terms
+
         # Store robot body names + "world"
         asset: Articulation = env.scene["robot"]
         self._body_names = ["world"] + asset.body_names
@@ -147,6 +150,42 @@ class IsaacLabTFBroadcaster(Node):
             t.transform.rotation.x = float(pose_rel[4])
             t.transform.rotation.y = float(pose_rel[5])
             t.transform.rotation.z = float(pose_rel[6])
+            transforms.append(t)
+
+        # Send transforms
+        self._tf_broadcaster.sendTransform(transforms)
+
+    def make_tag_transforms(self, env: ManagerBasedRLEnv, cmd: Tensor) -> None:
+        """Create and send AprilTag transforms to TF tree if available in command.
+
+        Args:
+            env: ManagerBasedRLEnv to interface with ROS 2 using the TF broadcaster node.
+            cmd: Tensor containing the latest commands from the environment. Shape is (1, cmd_dim).
+        """
+        if not self.has_tag_cmd:
+            return
+        cmd = cmd[0].cpu()
+        n_tags = cmd.shape[0] // 8
+
+        # Create transforms for each body
+        transforms = []
+        t_sim = env.common_step_counter * env.step_dt
+        stamp = Time(seconds=t_sim).to_msg()
+        for i in range(n_tags):
+            tag_id = int(cmd[i * 8])
+            t = TransformStamped()
+            t.header.stamp = stamp
+            t.header.frame_id = f"tag36h11:{tag_id}"
+            t.child_frame_id = f"camera_color_optical_frame:{tag_id}"
+
+            t.transform.translation.x = float(cmd[i * 8 + 1])
+            t.transform.translation.y = float(cmd[i * 8 + 2])
+            t.transform.translation.z = float(cmd[i * 8 + 3])
+
+            t.transform.rotation.w = float(cmd[i * 8 + 4])
+            t.transform.rotation.x = float(cmd[i * 8 + 5])
+            t.transform.rotation.y = float(cmd[i * 8 + 6])
+            t.transform.rotation.z = float(cmd[i * 8 + 7])
             transforms.append(t)
 
         # Send transforms

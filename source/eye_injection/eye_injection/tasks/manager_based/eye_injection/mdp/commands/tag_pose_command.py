@@ -14,6 +14,7 @@ from isaaclab.utils.math import (
     combine_frame_transforms,
     convert_camera_frame_orientation_convention,
     subtract_frame_transforms,
+    quat_from_euler_xyz,
 )
 
 if TYPE_CHECKING:
@@ -51,14 +52,14 @@ class TagPoseCommand(CommandTerm):
 
     The command generator generates poses by retargeting pose commands that were generated for the
     robot's EE relative to its base. Pose commands are retargeted such that they represent the pose
-    of AprilTags relative to the desired camera frame.
+    of the desired camera frame relative to the AprilTags.
 
     This pose transformation requires the following transforms:
         1) Base <- EE (target)
         2) EE <- Camera
         3) Base <- Tag_i
     using these 3 transforms, the new target pose is generated for Tag_i as the following:
-        - Camera (target) <- Tag_i = inv(Base <- EE (target) <- Camera) * (Base <- Tag_i)
+        - Tag_i <- Camera (target) = inv(Base <- Tag_i) * (Base <- EE (target) <- Camera)
 
     The command generator is configured to work alongside the PoseCommand generator.
     """
@@ -90,9 +91,9 @@ class TagPoseCommand(CommandTerm):
         self.pose_cam_ee = self._get_relative_camera_pose(env)
         self.pose_cam_ee = torch.tile(self.pose_cam_ee, (self.n_tags, 1))  # (nT * N, 7)
 
-        # extract the tag assets' relative poses to the base (assumed to be fixed)
-        self.pose_tag_base = self._get_relative_tag_poses()
-        self.pose_tag_base = torch.cat(self.pose_tag_base, dim=0)  # (nT * N, 7)
+        # extract the base's relative poses to the tag assets (assumed to be fixed)
+        self.pose_base_tag = self._get_relative_tag_poses()
+        self.pose_base_tag = torch.cat(self.pose_base_tag, dim=0)  # (nT * N, 7)
 
         # create buffers to store the command
         # -- commands: ([tag_id_0, tag_pose_0], ..., [tag_id_nT, tag_pose_nT])
@@ -120,7 +121,7 @@ class TagPoseCommand(CommandTerm):
 
     @property
     def command(self) -> Tensor:
-        """The tag ids and poses in the desired camera frames. Shape is (num_envs, nT * 8)."""
+        """The tag ids and desired camera frame poses. Shape is (num_envs, nT * 8)."""
         return combine_tag_poses_ids(self.pose_command, self.id_command)
 
     @property
@@ -156,18 +157,18 @@ class TagPoseCommand(CommandTerm):
             self.pose_cam_ee[:, 3:],
         )
 
-        # compute tag pose relative to camera (Camera (target) <- Tag)
-        pos_tag_cam, rot_tag_cam = subtract_frame_transforms(
+        # compute camera pose relative to tags (Tag <- Camera (target))
+        pos_cam_tag, rot_cam_tag = subtract_frame_transforms(
+            self.pose_base_tag[:, :3],
+            self.pose_base_tag[:, 3:],
             pos_cam_base,
             rot_cam_base,
-            self.pose_tag_base[:, :3],
-            self.pose_tag_base[:, 3:],
         )
 
         # update stored pose command
-        pose_tag_cam = torch.cat([pos_tag_cam, rot_tag_cam], dim=-1)
+        pose_cam_tag = torch.cat([pos_cam_tag, rot_cam_tag], dim=-1)
         self.pose_command = (
-            pose_tag_cam.reshape(self.n_tags, self.num_envs, 7)
+            pose_cam_tag.reshape(self.n_tags, self.num_envs, 7)
             .transpose(0, 1)
             .reshape(self.num_envs, self.n_tags * 7)
         )
@@ -203,32 +204,44 @@ class TagPoseCommand(CommandTerm):
         return pose
 
     def _get_relative_tag_poses(self) -> list[Tensor]:
-        """Get the relative poses of the tag assets with respect to the body asset.
+        """Get the base asset's relative poses with respect to the tag assets.
 
         Returns:
-            A list containing the poses of the tag assets with respect to the base asset. Length
+            A list containing the poses of the base asset with respect to the tag assets. Length
                 equal to the number of tag assets. Shape of each entry is (N, 7).
         """
-        # extract the reference prims
-        ref_prims = sim_utils.find_matching_prims(self.cfg.pose_source_prim_name)
+        # pose offset to correctly align tag frame with the AprilTag standard
+        # Isaac frame (x up, y left, z out), AprilTag frame (x right, y down, z in)
+        pos_offset = torch.zeros(self.num_envs, 3, device=self.device)
+        rot_offset = quat_from_euler_xyz(
+            torch.full((self.num_envs,), torch.pi),
+            torch.zeros(self.num_envs),
+            torch.zeros(self.num_envs),
+        ).to(device=self.device)
+
+        # extract the target (base) prims
+        target_prims = sim_utils.find_matching_prims(self.cfg.pose_source_prim_name)
 
         # extract relative poses for each tag prim
         poses = []
         for tag_prim_name in self.cfg.tag_prim_names:
             # extract the tag prims
-            tag_prims = sim_utils.find_matching_prims(tag_prim_name)
-            assert len(tag_prims) == len(ref_prims), (
-                f"Target and reference prims must have matching lengths, got {len(tag_prims)}"
+            ref_prims = sim_utils.find_matching_prims(tag_prim_name)
+            assert len(target_prims) == len(ref_prims), (
+                f"Target and reference prims must have matching lengths, got {len(target_prims)}"
                 f" and {len(ref_prims)}."
             )
 
             # extract the individual relative poses across environment instances
             pos, quat = [], []
-            for t_prim, r_prim in zip(tag_prims, ref_prims):
+            for t_prim, r_prim in zip(target_prims, ref_prims):
                 pos_i, quat_i = sim_utils.resolve_prim_pose(t_prim, ref_prim=r_prim)
                 pos.append(torch.tensor(pos_i))
                 quat.append(torch.tensor(quat_i))
             pos = torch.stack(pos, dim=0).to(device=self.device)
             quat = torch.stack(quat, dim=0).to(device=self.device)
+
+            # apply pose offset to correctly align tag frame
+            pos, quat = combine_frame_transforms(pos_offset, rot_offset, pos, quat)
             poses.append(torch.cat([pos, quat], dim=-1))
         return poses
