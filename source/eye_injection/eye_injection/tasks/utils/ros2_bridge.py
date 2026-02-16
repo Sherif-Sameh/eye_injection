@@ -8,9 +8,11 @@ import omni.replicator.core as rep
 import omni.syntheticdata._syntheticdata as sd
 import torch
 from example_interfaces.msg import Float32MultiArray
+from geometry_msgs.msg import PoseStamped
 from gymnasium.spaces import Dict
 from isaacsim.ros2.bridge import read_camera_info
 from rclpy.node import Node
+from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory
 
@@ -26,6 +28,8 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import TiledCamera
     from torch import Tensor
+
+    from eye_injection.tasks.manager_based.eye_injection.mdp import PoseCommand
 
 
 class IsaacLabRos2Bridge(Node):
@@ -49,11 +53,12 @@ class IsaacLabRos2Bridge(Node):
         assert isinstance(env.observation_space, Dict)
         super().__init__("isaac_bridge")
 
-        # Command and observations publishers
+        # Command, observations and pose error publishers
         self._pub_cmd = self.create_publisher(Float32MultiArray, "/isaaclab/command", 0)
         self._pub_obs_js = self.create_publisher(
             JointState, "/isaaclab/joint_states", 0
         )
+        self._pub_perr = self.create_publisher(PoseStamped, "/isaaclab/pose_error", 10)
         has_camera = any(
             [len(space.shape) == 4 for space in env.observation_space.spaces.values()]
         )
@@ -162,6 +167,31 @@ class IsaacLabRos2Bridge(Node):
         msg.position = obs[: self._num_joints].tolist()
         msg.velocity = obs[self._num_joints :].tolist()
         self._pub_obs_js.publish(msg)
+
+    def publish_pose_error(self, env: ManagerBasedRLEnv) -> None:
+        """Publish the computed pose tracking error from the pose command generator.
+
+        Args:
+            env: ManagerBasedRLEnv to interface with ROS 2 using the bridge node.
+        """
+        # extract logged pose error metric from environment
+        command_term: PoseCommand = env.command_manager.get_term("target_pose")
+        pos_error = command_term.metrics["position_error"][0].cpu()
+        rot_error = command_term.metrics["rotation_error"][0].cpu()
+        rot_error = R.from_rotvec(rot_error).as_quat()  # (x, y, z, w)
+
+        # create and publish PoseStamped message
+        msg = PoseStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "base_link"
+        msg.pose.position.x = float(pos_error[0])
+        msg.pose.position.y = float(pos_error[1])
+        msg.pose.position.z = float(pos_error[2])
+        msg.pose.orientation.x = float(rot_error[0])
+        msg.pose.orientation.y = float(rot_error[1])
+        msg.pose.orientation.z = float(rot_error[2])
+        msg.pose.orientation.w = float(rot_error[3])
+        self._pub_perr.publish(msg)
 
     def action_callback(self, msg: JointTrajectory) -> None:
         """Callback function for action subscriber.

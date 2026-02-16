@@ -8,8 +8,8 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Sequence
 
-import torch
 import isaaclab.sim as sim_utils
+import torch
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.math import (
@@ -20,9 +20,9 @@ from isaaclab.utils.math import (
 )
 
 if TYPE_CHECKING:
-    from torch import Tensor, BoolTensor
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
+    from torch import BoolTensor, Tensor
 
     from .commands_cfg import PoseCommandCfg
 
@@ -97,9 +97,11 @@ class PoseCommand(CommandTerm):
         self.pose_command_w = torch.zeros_like(self.pose_command_b)
 
         # -- metrics
-        self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
-        self.metrics["orientation_error"] = torch.zeros(
-            self.num_envs, device=self.device
+        self.metrics["position_error"] = torch.zeros(
+            self.num_envs, 3, device=self.device
+        )
+        self.metrics["rotation_error"] = torch.zeros(
+            self.num_envs, 3, device=self.device
         )
 
     def __str__(self) -> str:
@@ -128,10 +130,11 @@ class PoseCommand(CommandTerm):
 
     def _update_metrics(self) -> None:
         """Update the metrics based on the current state.
-        
+
         Computes the pose error between the current robot pose and the commanded pose. Pose errors
-        are measured and logged through two metrics. Euclidean distance (in m) is used for
-        positioning errors and geodesic distance (in rad) is used for orientation errors.
+        are measured and logged through two metrics. Position error are measured in Euclidean space
+        (in m) for all three axes. Orientation errors are measured in the tangent space of SO3
+        through the axis-angle 3D representation.
         """
         # transform command from base frame to simulation world frame
         self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = (
@@ -143,18 +146,18 @@ class PoseCommand(CommandTerm):
             )
         )
         # compute the error
-        pos_error, rot_error = compute_pose_error(
-            self.pose_command_w[:, :3],
-            self.pose_command_w[:, 3:],
-            self.robot.data.body_pos_w[:, self.body_idx],
-            self.robot.data.body_quat_w[:, self.body_idx],
+        self.metrics["position_error"], self.metrics["rotation_error"] = (
+            compute_pose_error(
+                self.pose_command_w[:, :3],
+                self.pose_command_w[:, 3:],
+                self.robot.data.body_pos_w[:, self.body_idx],
+                self.robot.data.body_quat_w[:, self.body_idx],
+            )
         )
-        self.metrics["position_error"] = torch.norm(pos_error, dim=-1)
-        self.metrics["orientation_error"] = torch.norm(rot_error, dim=-1)
 
     def _resample_command(self, env_ids: Sequence[int]) -> None:
         """Resample the command for the specified environments.
-        
+
         Reset the discrete state of given environments and resamples the first pose command. The
         pose command is set to one of the two approach poses of the associated targets. The choice
         of target pose is determined through the binary command of each environment.
@@ -185,7 +188,7 @@ class PoseCommand(CommandTerm):
         self.state[approach_done] = 1
         self.command_counter[approach_done] = 0
 
-        # 2) move linearly: update commanded pose at approach velocity for n_steps_approach 
+        # 2) move linearly: update commanded pose at approach velocity for n_steps_approach
         move_active = self.state == 1
         if move_active.any():
             move_continue = torch.logical_and(
@@ -368,8 +371,10 @@ class PoseCommand(CommandTerm):
             Boolean tensor containing the success status of each entry according to its errors and
                 the set tolerances. Shape is (N,).
         """
+        pos_error = torch.norm(self.metrics["position_error"], dim=-1)
+        rot_error = torch.norm(self.metrics["rotation_error"], dim=-1)
         reached = torch.logical_and(
-            self.metrics["position_error"] <= self.cfg.motion_cfg.pose_tol[0],
-            self.metrics["orientation_error"] <= self.cfg.motion_cfg.pose_tol[1],
+            pos_error <= self.cfg.motion_cfg.pose_tol[0],
+            rot_error <= self.cfg.motion_cfg.pose_tol[1],
         )
         return reached
