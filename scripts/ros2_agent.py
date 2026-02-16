@@ -82,6 +82,7 @@ def main():
             bridge_node.publish_observations_jointstate(obs["policy_prop"])
             bridge_node.publish_pose_error(env.unwrapped)
             tf_broadcaster_node.make_robot_transforms(env.unwrapped)
+            tf_broadcaster_node.make_tag_transforms(env.unwrapped, obs["policy_cmd"])
 
             # update ROS to check for published actions
             rclpy.spin_once(bridge_node, timeout_sec=0)

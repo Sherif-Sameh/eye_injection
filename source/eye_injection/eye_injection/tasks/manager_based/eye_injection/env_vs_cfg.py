@@ -60,7 +60,7 @@ class ActionsVsCfg:
 
     # Joint velocity (unscaled) action configuration
     # Joint velocity limits are extracted from the UR10e's technical specs sheet
-    joint_vel = mdp.JointVelocityActionCfg(
+    joint_velocity = mdp.JointVelocityActionCfg(
         asset_name="robot",
         joint_names=[".*"],
         clip={

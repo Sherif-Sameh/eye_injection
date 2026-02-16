@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import carb
 import omni
@@ -14,7 +14,9 @@ from isaacsim.ros2.bridge import read_camera_info
 from rclpy.node import Node
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState
-from trajectory_msgs.msg import JointTrajectory
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+
+from eye_injection.tasks.utils import actions
 
 # Warnings disabled from module to prevent repeated harmless warnings
 # related to the following issue: https://github.com/isaac-sim/IsaacSim/issues/403
@@ -40,8 +42,7 @@ class IsaacLabRos2Bridge(Node):
         Proprioceptive observations: Joint positions and velocities to be published as a JointState message.
         Extroceptive observations (optional): Camera images to be published as an Image message.
 
-    Meanwhile, actions are expected to be published as joint torques through the JointTrajectory
-    message interface.
+    Meanwhile, actions are expected to be published through the JointTrajectory message interface.
 
     Args:
         env: ManagerBasedRLEnv that satifies the above requirements to interface with ROS 2 using
@@ -68,6 +69,7 @@ class IsaacLabRos2Bridge(Node):
             self._setup_camera_info_publisher(env)
 
         # Action subscriber
+        self._action_fn = self._get_action_fn(env)
         self._sub_acts = self.create_subscription(
             JointTrajectory,
             "/isaaclab/joint_trajectory_controller/joint_trajectory",
@@ -85,6 +87,51 @@ class IsaacLabRos2Bridge(Node):
         self._action_ctr = 1
         self._action_zero = torch.zeros(*env.action_space.shape, device=env.device)
         self._action_buffer = torch.zeros(1, *env.action_space.shape, device=env.device)
+
+    @staticmethod
+    def _get_action_fn(
+        env: ManagerBasedRLEnv,
+    ) -> Callable[[JointTrajectory], Tensor]:
+        """Get the appropriate action function according to the environment's action space.
+
+        Action functions are used to extract the appropriate fields from a JointTrajectory msg
+        into a Tensor. All valid combinations of joint position, velocity and effort control are
+        supported. Check for function for valid combinations.
+
+        Args:
+            env: ManagerBasedRLEnv to interface with ROS 2 using the bridge node.
+
+        Returns:
+            Callable function that given a JointTrajectory msg will return a Tensor of joint
+                actions extracted appropriately from the msg.
+        """
+        # Determine active joint control terms
+        action_terms = env.action_manager.active_terms
+        has_position = "joint_position" in action_terms
+        has_velocity = "joint_velocity" in action_terms
+        has_effort = "joint_effort" in action_terms
+        assert has_position or has_velocity or has_effort, (
+            f"Env has no recognizable active action terms. Got {action_terms}."
+        )
+
+        # Joint position control (velocity and/or effort feed-forward allowed)
+        if has_position:
+            if not has_velocity and not has_effort:
+                return actions.position_action
+            if has_velocity and not has_effort:
+                return actions.position_action_velocity_ff
+            if not has_velocity and has_effort:
+                return actions.position_action_effort_ff
+            return actions.position_action_velocity_effort_ff
+
+        # Joint velocity control (effort feed-forward allowed)
+        if has_velocity:
+            if not has_effort:
+                return actions.velocity_action
+            return actions.velocity_action_effort_ff
+
+        # Joint effort control (no feed-forward allowed)
+        return actions.effort_action
 
     def _setup_observations_image_publisher(self, env: ManagerBasedRLEnv) -> None:
         """Setup publisher for rgb image observations through IsaacSim.
@@ -196,17 +243,17 @@ class IsaacLabRos2Bridge(Node):
     def action_callback(self, msg: JointTrajectory) -> None:
         """Callback function for action subscriber.
 
-        Joint torque sequences are stored in the action buffer and the action counter is reset.
+        Joint action sequences are stored in the action buffer and the action counter is reset.
 
         Args:
             msg: JointTrajectory message sent by controller.
         """
         self._action_ctr = 0
-        self._action_buffer = torch.tensor(
-            [point.effort for point in msg.points],
-            dtype=torch.float32,
-            device=self._device,
-        ).unsqueeze(1)
+        self._action_buffer = (
+            self._action_fn(msg)
+            .to(dtype=torch.float32, device=self._device)
+            .unsqueeze(1)
+        )  # (num_steps, 1, act_dim)
 
     def get_action(self) -> Tensor:
         """Get the current action to apply to environment from the action buffer.
