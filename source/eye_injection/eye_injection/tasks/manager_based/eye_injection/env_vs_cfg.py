@@ -5,8 +5,10 @@
 
 import math
 
+from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
 from . import mdp
@@ -95,6 +97,41 @@ class ObservationsVsCfg(ObservationsImageCfg):
     policy_cmd: PolicyCmdVsCfg = PolicyCmdVsCfg()
 
 
+@configclass
+class EventVsCfg:
+    """Modfied configuration for events for the visual servoing MDP."""
+
+    # keep only robot joint and mass randomization
+    # disable robot base and ground texture randomization
+    reset_robot_joints = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "position_range": (-0.125, 0.125),
+            "velocity_range": (0.0, 0.0),
+        },
+    )
+
+    rand_robot_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "mass_distribution_params": (0.9, 1.1),
+            "operation": "scale",
+            "distribution": "uniform",
+            "recompute_inertia": True,
+        },
+    )
+
+
+class RewardsVsCfg:
+    """Reward terms for the visual servoing MDP."""
+
+    # no reward terms are utilized for VS MDP
+
+
 ##
 # Environment configuration
 ##
@@ -110,3 +147,6 @@ class EyeInjectionEnvVsCfg(EyeInjectionEnvEnclosedCfg):
     observations: ObservationsVsCfg = ObservationsVsCfg()
     actions: ActionsVsCfg = ActionsVsCfg()
     commands: CommandsVsCfg = CommandsVsCfg()
+    # MDP settings
+    rewards: RewardsVsCfg = RewardsVsCfg()
+    events: EventVsCfg = EventVsCfg()
