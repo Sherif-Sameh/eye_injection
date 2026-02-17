@@ -89,13 +89,14 @@ def main():
 
             # apply action get observations from environment
             action = bridge_node.get_action()
-            obs, rewards, terminated, truncated, info = env.step(action)
+            obs, _, _, _, _ = env.step(action)
 
     # close the simulator
     env.close()
 
     # close the ROS 2 bridge
     bridge_node.destroy_node()
+    tf_broadcaster_node.destroy_node()
     rclpy.shutdown()
 
 

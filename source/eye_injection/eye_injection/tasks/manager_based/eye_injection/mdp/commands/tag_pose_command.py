@@ -13,7 +13,6 @@ from isaaclab.managers import CommandTerm
 from isaaclab.utils.math import (
     combine_frame_transforms,
     convert_camera_frame_orientation_convention,
-    subtract_frame_transforms,
     quat_from_euler_xyz,
 )
 
@@ -158,7 +157,7 @@ class TagPoseCommand(CommandTerm):
         )
 
         # compute camera pose relative to tags (Tag <- Camera (target))
-        pos_cam_tag, rot_cam_tag = subtract_frame_transforms(
+        pos_cam_tag, rot_cam_tag = combine_frame_transforms(
             self.pose_base_tag[:, :3],
             self.pose_base_tag[:, 3:],
             pos_cam_base,
