@@ -42,6 +42,27 @@ class EyeInjectionSceneVsCfg(EyeInjectionSceneEnclosedCfg):
 class CommandsVsCfg(CommandsBaseCfg):
     """Extended command terms for visual servoing MDP."""
 
+    # Modify target pose command motion cfg
+    target_pose = mdp.PoseCommandCfg(
+        asset_name="robot",
+        body_name="wrist_3_link",
+        target_prim_names=(
+            "/World/envs/env_.*/Bed/Person/Person/Root/EyeLeft",
+            "/World/envs/env_.*/Bed/Person/Person/Root/EyeRight",
+        ),
+        source_prim_name="/World/envs/env_.*/Robot/base_link",
+        binary_command_name="target_eye",
+        motion_cfg=mdp.PoseCommandCfg.MotionCfg(
+            pose_tol=(0.05, 0.1),
+            target_offset=0.2,
+            approach_offset=0.4,
+            approach_vel=0.05,
+            stationary_time=4.0,
+            retreat_vel=0.05,
+        ),
+        debug_vis=False,
+    )
+
     # Tag pose command for retargeting pose commands to AprilTags
     tag_pose = mdp.TagPoseCommandCfg(
         camera_asset_name="camera",

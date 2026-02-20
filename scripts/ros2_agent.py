@@ -62,6 +62,7 @@ def main():
         use_fabric=not args_cli.disable_fabric,
     )
     # create and reset environment
+    autoreset = False
     env = gym.make(args_cli.task, cfg=env_cfg)
     obs, info = env.reset()
 
@@ -81,6 +82,8 @@ def main():
             bridge_node.publish_commands(obs["policy_cmd"])
             bridge_node.publish_observations_jointstate(obs["policy_prop"])
             bridge_node.publish_pose_error(env.unwrapped)
+            if autoreset:
+                bridge_node.publish_reset()
             tf_broadcaster_node.make_robot_transforms(env.unwrapped)
             tf_broadcaster_node.make_tag_transforms(env.unwrapped, obs["policy_cmd"])
 
@@ -89,7 +92,8 @@ def main():
 
             # apply action get observations from environment
             action = bridge_node.get_action()
-            obs, _, _, _, _ = env.step(action)
+            obs, _, terminated, truncated, _ = env.step(action)
+            autoreset = torch.logical_or(terminated, truncated)
 
     # close the simulator
     env.close()

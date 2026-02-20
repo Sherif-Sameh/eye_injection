@@ -14,7 +14,8 @@ from isaacsim.ros2.bridge import read_camera_info
 from rclpy.node import Node
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from std_msgs.msg import Empty
+from trajectory_msgs.msg import JointTrajectory
 
 from eye_injection.tasks.utils import actions
 
@@ -54,12 +55,14 @@ class IsaacLabRos2Bridge(Node):
         assert isinstance(env.observation_space, Dict)
         super().__init__("isaac_bridge")
 
-        # Command, observations and pose error publishers
+        # Publishers
         self._pub_cmd = self.create_publisher(Float32MultiArray, "/isaaclab/command", 0)
         self._pub_obs_js = self.create_publisher(
             JointState, "/isaaclab/joint_states", 0
         )
         self._pub_perr = self.create_publisher(PoseStamped, "/isaaclab/pose_error", 10)
+        self._pub_rst = self.create_publisher(Empty, "/isaaclab/reset", 0)
+
         has_camera = any(
             [len(space.shape) == 4 for space in env.observation_space.spaces.values()]
         )
@@ -68,7 +71,7 @@ class IsaacLabRos2Bridge(Node):
             self._setup_observations_image_publisher(env)
             self._setup_camera_info_publisher(env)
 
-        # Action subscriber
+        # Subscribers
         self._action_fn = self._get_action_fn(env)
         self._sub_acts = self.create_subscription(
             JointTrajectory,
@@ -239,6 +242,11 @@ class IsaacLabRos2Bridge(Node):
         msg.pose.orientation.z = float(rot_error[2])
         msg.pose.orientation.w = float(rot_error[3])
         self._pub_perr.publish(msg)
+
+    def publish_reset(self) -> None:
+        """Publish reset signal."""
+        msg = Empty()
+        self._pub_rst.publish(msg)
 
     def action_callback(self, msg: JointTrajectory) -> None:
         """Callback function for action subscriber.
