@@ -9,7 +9,10 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
+
+from eye_injection.tasks.utils import PhysxReducedCfg
 
 from . import mdp
 from .env_base_cfg import CommandsBaseCfg
@@ -160,6 +163,15 @@ class RewardsVsCfg:
 
 @configclass
 class EyeInjectionEnvVsCfg(EyeInjectionEnvEnclosedCfg):
+    # Simulation settings
+    sim: SimulationCfg = SimulationCfg(
+        physx=PhysxReducedCfg(
+            partition_reduction=1,
+            memory_reduction=4,
+            has_soft_bodies=False,
+            has_particles=False,
+        )
+    )
     # Scene settings
     scene: EyeInjectionSceneVsCfg = EyeInjectionSceneVsCfg(
         num_envs=1, env_spacing=5.0, replicate_physics=False

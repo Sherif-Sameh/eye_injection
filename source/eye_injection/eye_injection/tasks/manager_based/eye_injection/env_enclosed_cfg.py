@@ -7,11 +7,12 @@
 from isaaclab.assets import RigidObjectCollectionCfg
 from isaaclab.utils import configclass
 
+from eye_injection.tasks.utils.room_cfg import ROOM_CFG
+
 from .env_apriltags_cfg import (
     EyeInjectionEnvAprilTagsCfg,
     EyeInjectionSceneAprilTagsCfg,
 )
-from .room_cfg import ROOM_CFG
 
 ##
 # Scene definition

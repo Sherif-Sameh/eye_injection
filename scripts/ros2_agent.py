@@ -37,17 +37,11 @@ simulation_app.update()
 
 """Rest everything follows."""
 
+import eye_injection.tasks  # noqa: F401
 import gymnasium as gym
 import isaaclab_tasks  # noqa: F401
 import rclpy
 import torch
-from example_interfaces.msg import Float32MultiArray
-from rclpy.node import Node
-from sensor_msgs.msg import Image, JointState
-from trajectory_msgs.msg import JointTrajectory
-
-from isaaclab_assets import UR10e_CFG  # isort:skip
-import eye_injection.tasks  # noqa: F401
 from eye_injection.tasks.utils import IsaacLabRos2Bridge, IsaacLabTFBroadcaster
 from isaaclab_tasks.utils import parse_env_cfg
 

@@ -17,12 +17,15 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
+from eye_injection.tasks.utils import PhysxReducedCfg
+from eye_injection.tasks.utils.room_cfg import ROOM_CFG, ROOM_THICKNESS
+
 from . import mdp
-from .room_cfg import ROOM_CFG, ROOM_THICKNESS
 
 ##
 # Pre-defined configs
@@ -336,6 +339,10 @@ class TerminationsBaseCfg:
 
 @configclass
 class EyeInjectionEnvBaseCfg(ManagerBasedRLEnvCfg):
+    # Simulation settings
+    sim: SimulationCfg = SimulationCfg(
+        physx=PhysxReducedCfg(has_soft_bodies=False, has_particles=False)
+    )
     # Scene settings
     scene: EyeInjectionSceneBaseCfg = EyeInjectionSceneBaseCfg(
         num_envs=4096, env_spacing=3.0, replicate_physics=False
