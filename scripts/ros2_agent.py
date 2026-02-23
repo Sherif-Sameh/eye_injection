@@ -20,6 +20,10 @@ parser.add_argument(
     help="Disable fabric and use USD I/O operations.",
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument("-s", "--seed", type=int, default=None, help="Environment seed.")
+parser.add_argument(
+    "-n", "--n_runs", type=int, default=0, help="Number of episodes to run."
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -42,12 +46,15 @@ import gymnasium as gym
 import isaaclab_tasks  # noqa: F401
 import rclpy
 import torch
-from eye_injection.tasks.utils import IsaacLabRos2Bridge, IsaacLabTFBroadcaster
+from eye_injection.tasks.utils import seed_everything
+from eye_injection.tasks.utils.ros2 import IsaacLabRos2Bridge, IsaacLabTFBroadcaster
 from isaaclab_tasks.utils import parse_env_cfg
 
 
 def main():
     """ROS2 actions agent with Isaac Lab environment."""
+    # set seed for reproducable results
+    seed_everything(args_cli.seed)
     # create environment configuration
     env_cfg = parse_env_cfg(
         args_cli.task,
@@ -55,8 +62,10 @@ def main():
         num_envs=1,
         use_fabric=not args_cli.disable_fabric,
     )
+    env_cfg.seed = args_cli.seed
     # create and reset environment
     autoreset = False
+    n_runs_left = args_cli.n_runs if args_cli.n_runs > 0 else float("inf")
     env = gym.make(args_cli.task, cfg=env_cfg)
     obs, info = env.reset()
 
@@ -65,11 +74,8 @@ def main():
     bridge_node = IsaacLabRos2Bridge(env.unwrapped)
     tf_broadcaster_node = IsaacLabTFBroadcaster(env.unwrapped)
 
-    # print info (this is vectorized environment)
-    print(f"[INFO]: Gym observation space: {env.observation_space}")
-    print(f"[INFO]: Gym action space: {env.action_space}")
     # simulate environment
-    while simulation_app.is_running():
+    while simulation_app.is_running() and n_runs_left > 0:
         # run everything in inference mode
         with torch.inference_mode():
             # publish commands, observations, pose errors and transforms to ROS 2
@@ -77,6 +83,7 @@ def main():
             bridge_node.publish_observations_jointstate(obs["policy_prop"])
             bridge_node.publish_pose_error(env.unwrapped)
             if autoreset:
+                n_runs_left -= 1
                 bridge_node.publish_reset()
             tf_broadcaster_node.make_robot_transforms(env.unwrapped)
             tf_broadcaster_node.make_tag_transforms(env.unwrapped, obs["policy_cmd"])
