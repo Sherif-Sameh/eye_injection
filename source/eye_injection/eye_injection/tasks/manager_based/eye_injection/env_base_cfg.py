@@ -22,8 +22,8 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
-from eye_injection.tasks.utils import PhysxReducedCfg
-from eye_injection.tasks.utils.room_cfg import ROOM_CFG, ROOM_THICKNESS
+from eye_injection.tasks.utils.isaac import PhysxReducedCfg
+from eye_injection.tasks.utils.isaac.room_cfg import ROOM_CFG, ROOM_THICKNESS
 
 from . import mdp
 

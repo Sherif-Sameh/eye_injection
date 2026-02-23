@@ -12,7 +12,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from eye_injection.tasks.utils import PhysxReducedCfg
+from eye_injection.tasks.utils.isaac import PhysxReducedCfg
 
 from . import mdp
 from .env_base_cfg import CommandsBaseCfg

@@ -12,7 +12,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import TiledCameraCfg
 from isaaclab.utils import configclass
 
-from eye_injection.tasks.utils.room_cfg import GROUND_TEXTURE_PATHS
+from eye_injection.tasks.utils.isaac.room_cfg import GROUND_TEXTURE_PATHS
 
 from . import mdp
 from .env_base_cfg import (

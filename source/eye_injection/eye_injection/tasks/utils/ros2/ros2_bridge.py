@@ -17,7 +17,7 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Empty
 from trajectory_msgs.msg import JointTrajectory
 
-from eye_injection.tasks.utils import actions
+from eye_injection.tasks.utils.ros2 import actions
 
 # Warnings disabled from module to prevent repeated harmless warnings
 # related to the following issue: https://github.com/isaac-sim/IsaacSim/issues/403
