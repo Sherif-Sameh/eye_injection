@@ -13,16 +13,12 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="ROS2 agent for Isaac Lab environments.")
-parser.add_argument(
-    "--disable_fabric",
-    action="store_true",
-    default=False,
-    help="Disable fabric and use USD I/O operations.",
-)
-parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("-s", "--seed", type=int, default=None, help="Environment seed.")
 parser.add_argument(
-    "-n", "--n_runs", type=int, default=0, help="Number of episodes to run."
+    "-n", "--n_runs", type=int, default=0, help="Number of episodes to simulate."
+)
+parser.add_argument(
+    "-c", "--config", type=str, default="base.toml", help="Config file to load."
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -41,40 +37,60 @@ simulation_app.update()
 
 """Rest everything follows."""
 
+from pathlib import Path
+from typing import Any
+
 import eye_injection.tasks  # noqa: F401
 import gymnasium as gym
 import isaaclab_tasks  # noqa: F401
 import rclpy
 import torch
-from eye_injection.tasks.utils import seed_everything
+from eye_injection.tasks.utils.common import (
+    apply_overrides,
+    load_toml,
+    seed_everything,
+    to_noise_cfg,
+)
 from eye_injection.tasks.utils.ros2 import IsaacLabRos2Bridge, IsaacLabTFBroadcaster
 from isaaclab_tasks.utils import parse_env_cfg
 
 
+def load_config() -> dict[str, Any]:
+    """Load environment configuration with optional overrides applied to defaults."""
+    # load environment config file
+    config = load_toml(Path(__file__).parent / f"config/{args_cli.config}")
+    # load default environment configuration
+    env_cfg = parse_env_cfg(config["task_name"])
+    # override seed if given in args
+    if args_cli.seed is not None:
+        config["env"]["seed"] = args_cli.seed
+    # convert any noise cfgs descriptions to instances of NoiseCfg
+    to_noise_cfg(config)
+    # apply overrides from config file
+    config["env"] = apply_overrides(env_cfg, config["env"])
+    return config
+
+
 def main():
     """ROS2 actions agent with Isaac Lab environment."""
-    # set seed for reproducable results
-    seed_everything(args_cli.seed)
-    # create environment configuration
-    env_cfg = parse_env_cfg(
-        args_cli.task,
-        device=args_cli.device,
-        num_envs=1,
-        use_fabric=not args_cli.disable_fabric,
-    )
-    env_cfg.seed = args_cli.seed
+    # load configuration and set seed for reproducable results
+    config = load_config()
+    seed_everything(config["env"].seed)
+
     # create and reset environment
-    autoreset = False
-    n_runs_left = args_cli.n_runs if args_cli.n_runs > 0 else float("inf")
-    env = gym.make(args_cli.task, cfg=env_cfg)
+    env = gym.make(config["task_name"], cfg=config["env"])
     obs, info = env.reset()
 
     # initialize ROS and create ROS 2 bridge and tf broadcaster nodes
     rclpy.init()
-    bridge_node = IsaacLabRos2Bridge(env.unwrapped)
-    tf_broadcaster_node = IsaacLabTFBroadcaster(env.unwrapped)
+    bridge_node = IsaacLabRos2Bridge(env.unwrapped, **config["ros2_bridge"])
+    tf_broadcaster_node = IsaacLabTFBroadcaster(
+        env.unwrapped, **config["tf_broadcaster"]
+    )
 
     # simulate environment
+    autoreset = False
+    n_runs_left = args_cli.n_runs if args_cli.n_runs > 0 else float("inf")
     while simulation_app.is_running() and n_runs_left > 0:
         # run everything in inference mode
         with torch.inference_mode():
@@ -84,7 +100,8 @@ def main():
             bridge_node.publish_pose_error(env.unwrapped)
             if autoreset:
                 n_runs_left -= 1
-                bridge_node.publish_reset()
+                bridge_node.reset(env.unwrapped)
+                tf_broadcaster_node.make_static_transforms(env.unwrapped)
             tf_broadcaster_node.make_robot_transforms(env.unwrapped)
             tf_broadcaster_node.make_tag_transforms(env.unwrapped, obs["policy_cmd"])
 

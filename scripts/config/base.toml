@@ -1,0 +1,104 @@
+### Base environment configuration ###
+
+# Environment name
+task_name = "Isaac-Eye-Injection-Vs-v0"
+
+
+# Environment configuration
+# General settings
+[env]
+seed = 0
+episode_length_s = 40.0
+decimation = 2
+
+
+# Simulation configuration
+[env.sim]
+device = "cpu"
+use_fabric = true
+
+
+# Scene configuration
+[env.scene]
+num_envs = 1
+env_spacing = 5.0
+replicate_physics = false
+
+# Camera configuration
+[env.scene.camera]
+update_period = 0.1
+height = 480
+width = 640
+data_types = ["rgb"]
+
+# Camera intrinsic parameters
+[env.scene.camera.spawn]
+focal_length = 24.0
+focus_distance = 400.0
+horizontal_aperture = 20.955
+clipping_range = [0.1, 1e5]
+
+# Camera extrinsic parameters
+[env.scene.camera.offset]
+pos = [-0.06, 0.0, -0.035]
+rot = [1.0, 0.0, 0.0, 0.0]
+convention = "ros"
+
+# AprilTags configuration
+[env.scene.marker_1.spawn]
+scale = [0.1, 0.1, 1.0]
+[env.scene.marker_1.init_state]
+pos = [0.2, 0.75, 0.794]
+
+[env.scene.marker_2.spawn]
+scale = [0.1, 0.1, 1.0]
+[env.scene.marker_2.init_state]
+pos = [-0.2, 0.75, 0.794]
+
+
+# Observations configuration (without noise)
+[env.observations.policy_prop.joint_pos.noise]
+noise_class = "AdditiveUniformNoiseCfg"
+[env.observations.policy_prop.joint_pos.noise.parameters]
+n_min = -0.0
+n_max = 0.0
+
+[env.observations.policy_prop.joint_vel.noise]
+noise_class = "AdditiveUniformNoiseCfg"
+[env.observations.policy_prop.joint_vel.noise.parameters]
+n_min = -0.0
+n_max = 0.0
+
+
+# Commands configuration
+[env.commands.target_pose]
+debug_vis = false
+[env.commands.target_pose.motion_cfg]
+pose_tol = [0.05, 0.1]
+target_offset = 0.25
+approach_offset = 0.4
+approach_vel = 0.05
+stationary_time = 4.0
+retreat_vel = 0.05
+
+
+# Events configuration
+[env.events.reset_robot_joints]
+mode = "reset"
+[env.events.reset_robot_joints.params]
+position_range = [-0.0, 0.0]
+velocity_range = [-0.0, 0.0]
+
+[env.events.rand_gravity_force]
+mode = "reset"
+[env.events.rand_gravity_force.params]
+distribution_params = [-0.0, 0.0]
+distribution = "uniform"
+
+
+# Camera extrinsics noise configuration (without noise)
+[tf_broadcaster]
+
+
+# Camera intrinsics noise configuration (without noise)
+[ros2_bridge]
