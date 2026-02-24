@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 import carb
+import numpy as np
 import omni
 import omni.replicator.core as rep
 import omni.syntheticdata._syntheticdata as sd
@@ -30,6 +31,8 @@ if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import TiledCamera
+    from isaaclab.utils.noise import NoiseCfg
+    from sensor_msgs.msg import CameraInfo
     from torch import Tensor
 
     from eye_injection.tasks.manager_based.eye_injection.mdp import PoseCommand
@@ -48,12 +51,19 @@ class IsaacLabRos2Bridge(Node):
     Args:
         env: ManagerBasedRLEnv that satifies the above requirements to interface with ROS 2 using
             the bridge node.
+        noise: Noise configuration for noise to apply to the true camera intrinsics. Noise is only
+            sampled for the `fx` (=`fy`) `cx` and `cy` parameters of the calibration matrix. Noise
+            is sampled independent of the parameters' values according to the given configuration.
+            The final parameters are computed as (`p` + `p` * `n`), where `p` is the parameter's
+            true value and `n` is the noise sampled for it.
     """
 
-    def __init__(self, env: ManagerBasedRLEnv):
+    def __init__(self, env: ManagerBasedRLEnv, noise: NoiseCfg | None = None):
         assert env.num_envs == 1
         assert isinstance(env.observation_space, Dict)
+        assert noise is None or noise.operation == "add"
         super().__init__("isaac_bridge")
+        self.noise = noise
 
         # Publishers
         self._pub_cmd = self.create_publisher(Float32MultiArray, "/isaaclab/command", 0)
@@ -161,6 +171,9 @@ class IsaacLabRos2Bridge(Node):
     def _setup_camera_info_publisher(self, env: ManagerBasedRLEnv) -> None:
         """Setup publisher for camera's information through IsaacSim.
 
+        The camera's intrinsics are set after the application of the randomly sampled noise to the
+        camera's true intrinsic parameters.
+
         Args:
             env: ManagerBasedRLEnv to interface with ROS 2 using the bridge node.
         """
@@ -168,9 +181,12 @@ class IsaacLabRos2Bridge(Node):
         render_product = camera.render_product_paths[0]
 
         # The following code will link the camera's render product and publish the data to the specified topic name.
-        writer = rep.writers.get("ROS2PublishCameraInfo")
+        if not hasattr(self, "_writer_ci"):
+            self._writer_ci = rep.writers.get("ROS2PublishCameraInfo")
+        else:
+            self._writer_ci.detach()
         camera_info, _ = read_camera_info(render_product_path=render_product)
-        writer.initialize(
+        self._writer_ci.initialize(
             frameId="camera_color_optical_frame",
             nodeNamespace="",
             queueSize=0,
@@ -178,13 +194,39 @@ class IsaacLabRos2Bridge(Node):
             width=camera_info.width,
             height=camera_info.height,
             projectionType=camera_info.distortion_model,
-            k=camera_info.k.reshape([1, 9]),
+            k=self._apply_noise_to_camera_intrinsics(camera_info),
             r=camera_info.r.reshape([1, 9]),
             p=camera_info.p.reshape([1, 12]),
             physicalDistortionModel=camera_info.distortion_model,
             physicalDistortionCoefficients=camera_info.d,
         )
-        writer.attach([render_product])
+        self._writer_ci.attach([render_product])
+
+    def _apply_noise_to_camera_intrinsics(self, camera_info: CameraInfo) -> None:
+        """Apply randomly sampled noise to the stored camera intrinsic parameters.
+
+        Returns:
+            Camera calibration matrix after noise application. Shape is (1, 9).
+        """
+        if self.noise is None:
+            return camera_info.k.reshape([1, 9])
+
+        fx = camera_info.k[0]
+        cx, cy = camera_info.k[2], camera_info.k[5]
+        noise = self.noise.func(torch.zeros(3), self.noise)
+        return np.array(
+            [
+                fx * (noise[0] + 1),
+                0,
+                cx * (noise[1] + 1),
+                0,
+                fx * (noise[0] + 1),
+                cy * (noise[2] + 1),
+                0,
+                0,
+                1,
+            ]
+        ).reshape([1, 9])
 
     def publish_commands(self, cmd: Tensor) -> None:
         """Publish commands to ROS 2 topic of type Float32MultiArray.
@@ -243,10 +285,12 @@ class IsaacLabRos2Bridge(Node):
         msg.pose.orientation.w = float(rot_error[3])
         self._pub_perr.publish(msg)
 
-    def publish_reset(self) -> None:
-        """Publish reset signal."""
+    def reset(self, env: ManagerBasedRLEnv) -> None:
+        """Publish reset signal and reset camera info publisher if available."""
         msg = Empty()
         self._pub_rst.publish(msg)
+        if hasattr(self, "_writer_ci"):
+            self._setup_camera_info_publisher(env)
 
     def action_callback(self, msg: JointTrajectory) -> None:
         """Callback function for action subscriber.

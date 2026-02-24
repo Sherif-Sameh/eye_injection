@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 from geometry_msgs.msg import TransformStamped
 from gymnasium.spaces import Dict
@@ -11,6 +12,7 @@ from isaaclab.utils.math import (
 )
 from rclpy.node import Node
 from rclpy.time import Time
+from scipy.spatial.transform import Rotation as R
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros.transform_broadcaster import TransformBroadcaster
 
@@ -18,6 +20,7 @@ if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import TiledCamera
+    from isaaclab.utils.noise import NoiseCfg
     from torch import Tensor
 
 
@@ -55,26 +58,30 @@ class IsaacLabTFBroadcaster(Node):
 
     Args:
         env: ManagerBasedRLEnv to interface with ROS 2 using the TF broadcaster node.
+        noise: Noise configuration for noise to apply to the true camera extrinsics. Noise for the
+            rotation is applied and sampled using the rotation vector representation then the
+            resulting orientation is converted back to a quaternion.
     """
 
-    def __init__(self, env: ManagerBasedRLEnv):
+    def __init__(self, env: ManagerBasedRLEnv, noise: NoiseCfg | None = None):
         assert env.num_envs == 1
         assert isinstance(env.observation_space, Dict)
         super().__init__("isaac_tf_broadcaster")
+        self.noise = noise
 
         # Initialize transform broadcasters
         self._tf_static_broadcaster = StaticTransformBroadcaster(self)
         self._tf_broadcaster = TransformBroadcaster(self)
 
         # Publish static transforms once at startup
-        has_camera = any(
+        self._has_camera = any(
             [len(space.shape) == 4 for space in env.observation_space.spaces.values()]
         )
-        if has_camera:
+        if self._has_camera:
             self._make_static_camera_transform(env)
 
         # Check for existence of tag pose command
-        self.has_tag_cmd = "tag_pose" in env.command_manager.active_terms
+        self._has_tag_cmd = "tag_pose" in env.command_manager.active_terms
 
         # Store robot body names + "world"
         asset: Articulation = env.scene["robot"]
@@ -82,6 +89,10 @@ class IsaacLabTFBroadcaster(Node):
 
     def _make_static_camera_transform(self, env: ManagerBasedRLEnv) -> None:
         """Initialize and send static transform from camera to parent link frame.
+
+        Sends two transforms. A ground truth transform with the child_frame_id of
+        "camera_color_optical_frame_gt" and a potentially noise transform with the child_frame_id
+        of "camera_color_optical_frame".
 
         Args:
             env: ManagerBasedRLEnv to interface with ROS 2 using the TF broadcaster node.
@@ -91,35 +102,72 @@ class IsaacLabTFBroadcaster(Node):
         offset = asset.cfg.offset
 
         # Get camera position and orientation in ROS convention (forward axis +Z)
-        pos = offset.pos
-        rot = offset.rot
+        pos_gt, rot_gt = offset.pos, offset.rot
         if offset.convention != "ros":
-            rot = convert_camera_frame_orientation_convention(
-                torch.tensor(rot),
-                origin=offset.convention,
-                target="ros",
+            rot_gt = tuple(
+                convert_camera_frame_orientation_convention(
+                    torch.tensor(rot_gt),
+                    origin=offset.convention,
+                    target="ros",
+                ).tolist()
             )
 
-        # Setup transformation object
-        t = TransformStamped()
-        t_sim = env.common_step_counter * env.step_dt
-        t.header.stamp = Time(seconds=t_sim).to_msg()
-        t.header.frame_id = asset.cfg.prim_path.split("/")[-2]
-        t.child_frame_id = "camera_color_optical_frame"
+        # Apply noise to camera pose
+        pos_n, rot_n = self._apply_noise_to_camera_transform(pos_gt, rot_gt)
+        pos, rot = (pos_n, pos_gt), (rot_n, rot_gt)
 
-        t.transform.translation.x = float(pos[0])
-        t.transform.translation.y = float(pos[1])
-        t.transform.translation.z = float(pos[2])
+        # Setup transformation objects (noisy and GT)
+        transforms = []
+        for i, (p, r) in enumerate(zip(pos, rot)):
+            t = TransformStamped()
+            t_sim = env.common_step_counter * env.step_dt
+            t.header.stamp = Time(seconds=t_sim).to_msg()
+            t.header.frame_id = asset.cfg.prim_path.split("/")[-2]
+            t.child_frame_id = "camera_color_optical_frame"
+            t.child_frame_id += "_gt" if i == 1 else ""
 
-        t.transform.rotation.w = float(rot[0])
-        t.transform.rotation.x = float(rot[1])
-        t.transform.rotation.y = float(rot[2])
-        t.transform.rotation.z = float(rot[3])
+            t.transform.translation.x = float(p[0])
+            t.transform.translation.y = float(p[1])
+            t.transform.translation.z = float(p[2])
 
-        # Send static transform
-        self._tf_static_broadcaster.sendTransform(t)
+            t.transform.rotation.w = float(r[0])
+            t.transform.rotation.x = float(r[1])
+            t.transform.rotation.y = float(r[2])
+            t.transform.rotation.z = float(r[3])
+            transforms.append(t)
 
-    def make_robot_transforms(self, env: ManagerBasedRLEnv):
+        # Send static transforms
+        self._tf_static_broadcaster.sendTransform(transforms)
+
+    def _apply_noise_to_camera_transform(
+        self, pos: tuple, quat: tuple
+    ) -> tuple[tuple, tuple]:
+        """Apply randomly sampled noise to the given camera transform.
+
+        The configuration of the noise is derived from the instance's `noise` attribute.
+
+        Args:
+            pos: Position of the camera relative to its parent frame.
+            quat: Quaternion (w, x, y, z) of the camera relative to its parent frame.
+
+        Returns:
+            Tuple containing the new position and quaternion after noise application.
+        """
+        if self.noise is None:
+            return pos, quat
+
+        rotvec = R.from_quat(quat, scalar_first=True).as_rotvec()
+        pose = torch.from_numpy(np.concatenate([pos, rotvec]))
+        pose = self.noise.func(pose, self.noise)
+        quat = R.from_rotvec(pose[3:].numpy()).as_quat(scalar_first=True)
+        return tuple(pose[:3].tolist()), tuple(quat.tolist())
+
+    def make_static_transforms(self, env: ManagerBasedRLEnv) -> None:
+        """Initialize and send static transforms to TF tree."""
+        if self._has_camera:
+            self._make_static_camera_transform(env)
+
+    def make_robot_transforms(self, env: ManagerBasedRLEnv) -> None:
         """Create and send robot relative transforms between links to TF tree.
 
         Args:
@@ -162,7 +210,7 @@ class IsaacLabTFBroadcaster(Node):
             env: ManagerBasedRLEnv to interface with ROS 2 using the TF broadcaster node.
             cmd: Tensor containing the latest commands from the environment. Shape is (1, cmd_dim).
         """
-        if not self.has_tag_cmd:
+        if not self._has_tag_cmd:
             return
         cmd = cmd[0].cpu()
         n_tags = cmd.shape[0] // 8
