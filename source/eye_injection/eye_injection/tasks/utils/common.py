@@ -1,13 +1,19 @@
+from __future__ import annotations
+
 import os
 import random
 from dataclasses import fields
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 import tomllib
 import torch
 from isaaclab.utils import noise
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
+    from torch import Tensor
 
 
 def seed_everything(seed: int | None) -> None:
@@ -69,14 +75,15 @@ def to_noise_cfg(cfg: dict[str, Any]) -> None:
         cfg: Configuration dictionary to traverse and modify any `NoiseCfg` entries.
     """
     for key, value in cfg.items():
-        if isinstance(value, dict):
-            if "noise_class" in value:
-                cls = getattr(noise, value["noise_class"])
-                assert issubclass(cls, noise.NoiseCfg)
-                params = value.get("parameters", {})
-                cfg[key] = cls(**params)
-            else:
-                to_noise_cfg(cfg[key])
+        if not isinstance(value, dict):
+            continue
+        if "noise_class" not in value:
+            to_noise_cfg(cfg[key])
+        else:
+            cls = getattr(noise, value["noise_class"])
+            params = value.get("parameters", {})
+            cfg[key] = cls(**params)
+            cfg[key] = apply_overrides(cfg[key], params)
 
 
 def apply_overrides(cfg: object, overrides: dict[str, Any]) -> object:
@@ -96,20 +103,29 @@ def apply_overrides(cfg: object, overrides: dict[str, Any]) -> object:
 
         value = getattr(cfg, name)
         if hasattr(value, "__dict__"):
-            if type(value) is type(overrides[name]):
-                setattr(cfg, name, overrides[name])
+            if hasattr(overrides[name], "__dict__"):
+                try:
+                    setattr(cfg, name, overrides[name])
+                except Exception as e:
+                    print(f"Failed to set field: {name} with matching value. {e}")
+                    continue
             else:
                 setattr(cfg, name, apply_overrides(value, overrides[name]))
         elif type(value) is dict:
-            setattr(cfg, name, apply_overrides_dict(value, overrides[name]))
+            setattr(cfg, name, _apply_overrides_dict(value, overrides[name]))
         else:
-            if type(value) is tuple and type(overrides[name]) is list:
-                overrides[name] = tuple(overrides[name])
+            if type(overrides[name]) is list:
+                overrides[name] = _list_to_type(str(field.type), overrides[name])
             setattr(cfg, name, overrides[name])
     return cfg
 
 
-def apply_overrides_dict(
+##
+# Private functions
+##
+
+
+def _apply_overrides_dict(
     cfg: dict[str, Any], overrides: dict[str, Any]
 ) -> dict[str, Any]:
     """Apply overrides to a configuration dictionary from given dictionary.
@@ -128,7 +144,29 @@ def apply_overrides_dict(
         if name not in overrides or type(value) is dict:
             continue
 
-        if type(value) is tuple and type(overrides[name]) is list:
-            overrides[name] = tuple(overrides[name])
+        if type(overrides[name]) is list:
+            overrides[name] = _list_to_type(str(type(value)), overrides[name])
         cfg[name] = overrides[name]
     return cfg
+
+
+def _list_to_type(target_type: str, value: list) -> list | tuple | NDArray | Tensor:
+    """Convert from list type to a derived type compatible with the target type.
+
+    If target type includes one of the following types, the list will be converted to that type:
+    [tuple, np.ndarray, torch.Tensor]. Otherwise it will be returned as is.
+
+    Args:
+        target_type: String representation of the target type.
+        value: List to attempt to convert.
+
+    Returns:
+        List after processing, whose type will be changed if possible and needed by the Field.
+    """
+    if "tuple" in target_type:
+        return tuple(value)
+    if "ndarray" in target_type:
+        return np.array(value)
+    if "Tensor" in target_type:
+        return torch.tensor(value)
+    return value

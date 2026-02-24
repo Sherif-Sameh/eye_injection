@@ -52,16 +52,13 @@ class IsaacLabRos2Bridge(Node):
         env: ManagerBasedRLEnv that satifies the above requirements to interface with ROS 2 using
             the bridge node.
         noise: Noise configuration for noise to apply to the true camera intrinsics. Noise is only
-            sampled for the `fx` (=`fy`) `cx` and `cy` parameters of the calibration matrix. Noise
-            is sampled independent of the parameters' values according to the given configuration.
-            The final parameters are computed as (`p` + `p` * `n`), where `p` is the parameter's
-            true value and `n` is the noise sampled for it.
+            sampled and applied to the three parameters `fx` (=`fy`), `cx` and `cy` of the
+            calibration matrix.
     """
 
     def __init__(self, env: ManagerBasedRLEnv, noise: NoiseCfg | None = None):
         assert env.num_envs == 1
         assert isinstance(env.observation_space, Dict)
-        assert noise is None or noise.operation == "add"
         super().__init__("isaac_bridge")
         self.noise = noise
 
@@ -211,17 +208,16 @@ class IsaacLabRos2Bridge(Node):
         if self.noise is None:
             return camera_info.k.reshape([1, 9])
 
-        fx = camera_info.k[0]
-        cx, cy = camera_info.k[2], camera_info.k[5]
-        noise = self.noise.func(torch.zeros(3), self.noise)
+        params = torch.tensor([camera_info.k[0], camera_info.k[2], camera_info.k[5]])
+        params = self.noise.func(params, self.noise)
         return np.array(
             [
-                fx * (noise[0] + 1),
+                params[0],
                 0,
-                cx * (noise[1] + 1),
+                params[1],
                 0,
-                fx * (noise[0] + 1),
-                cy * (noise[2] + 1),
+                params[0],
+                params[2],
                 0,
                 0,
                 1,
