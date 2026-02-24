@@ -1,4 +1,4 @@
-### Base environment configuration ###
+### Environment configuration with noisy camera intrinsics ###
 
 # Environment name
 task_name = "Isaac-Eye-Injection-Vs-v0"
@@ -94,5 +94,9 @@ distribution = "uniform"
 [tf_broadcaster]
 
 
-# Camera intrinsics noise configuration (without noise)
-[ros2_bridge]
+# Camera intrinsics noise configuration
+[ros2_bridge.noise]
+noise_class = "UniformNoiseCfg"
+[ros2_bridge.noise.parameters]
+n_min = [-7.0, -3.0, -3.0]
+n_max = [7.0, 3.0, 3.0]

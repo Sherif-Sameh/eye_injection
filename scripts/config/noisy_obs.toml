@@ -1,4 +1,4 @@
-### Base environment configuration ###
+### Environment configuration with noisy observations ###
 
 # Environment name
 task_name = "Isaac-Eye-Injection-Vs-v0"
@@ -56,12 +56,18 @@ scale = [0.1, 0.1, 1.0]
 pos = [-0.2, 0.75, 0.794]
 
 
-# Observations configuration (without noise)
+# Observations configuration
 [env.observations.policy_prop.joint_pos.noise]
-noise_class = "ConstantNoiseCfg"
+noise_class = "UniformNoiseCfg"
+[env.observations.policy_prop.joint_pos.noise.parameters]
+n_min = -0.035
+n_max = 0.035
 
 [env.observations.policy_prop.joint_vel.noise]
-noise_class = "ConstantNoiseCfg"
+noise_class = "UniformNoiseCfg"
+[env.observations.policy_prop.joint_vel.noise.parameters]
+n_min = -0.075
+n_max = 0.075
 
 
 # Commands configuration
