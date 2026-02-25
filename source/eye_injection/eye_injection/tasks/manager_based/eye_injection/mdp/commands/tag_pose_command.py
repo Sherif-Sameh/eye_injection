@@ -24,28 +24,6 @@ if TYPE_CHECKING:
     from .commands_cfg import TagPoseCommandCfg
 
 
-@torch.jit.script
-def combine_tag_poses_ids(poses: Tensor, ids: Tensor) -> Tensor:
-    """Combine the tag pose commands with their corresponding IDs.
-
-    Each pose-id pair is combined in the form (id, pose).
-
-    Args:
-        poses: Tag poses. Shape is (N, nT * 7).
-        ids: Tag ids. Shape is (N, nT).
-
-    Returns:
-        Combined tag poses with ids. Shape is (N, nT * 8).
-    """
-    n_envs, n_tags = ids.shape
-    device = ids.device
-    combined = torch.zeros(n_envs, n_tags * 8, dtype=torch.float32, device=device)
-    for i in range(n_tags):
-        combined[:, i * 8] = ids[:, i]
-        combined[:, i * 8 + 1 : (i + 1) * 8] = poses[:, i * 7 : (i + 1) * 7]
-    return combined
-
-
 class TagPoseCommand(CommandTerm):
     """Tag pose command term for retargeting robot pose commands.
 
@@ -119,7 +97,7 @@ class TagPoseCommand(CommandTerm):
     @property
     def command(self) -> Tensor:
         """The tag ids and desired camera frame poses. Shape is (num_envs, nT * 8)."""
-        return combine_tag_poses_ids(self.pose_command, self.id_command)
+        return _combine_tag_poses_ids(self.pose_command, self.id_command)
 
     @property
     def target_pose_command(self) -> Tensor:
@@ -239,3 +217,25 @@ class TagPoseCommand(CommandTerm):
             pos, quat = combine_frame_transforms(pos_offset, rot_offset, pos, quat)
             poses.append(torch.cat([pos, quat], dim=-1))
         return poses
+
+
+@torch.jit.script
+def _combine_tag_poses_ids(poses: Tensor, ids: Tensor) -> Tensor:
+    """Combine the tag pose commands with their corresponding IDs.
+
+    Each pose-id pair is combined in the form (id, pose).
+
+    Args:
+        poses: Tag poses. Shape is (N, nT * 7).
+        ids: Tag ids. Shape is (N, nT).
+
+    Returns:
+        Combined tag poses with ids. Shape is (N, nT * 8).
+    """
+    n_envs, n_tags = ids.shape
+    device = ids.device
+    combined = torch.zeros(n_envs, n_tags * 8, dtype=torch.float32, device=device)
+    for i in range(n_tags):
+        combined[:, i * 8] = ids[:, i]
+        combined[:, i * 8 + 1 : (i + 1) * 8] = poses[:, i * 7 : (i + 1) * 7]
+    return combined

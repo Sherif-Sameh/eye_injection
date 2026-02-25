@@ -56,6 +56,19 @@ class BinaryCommand(CommandTerm):
         return self._command
 
     """
+    Operations.
+    """
+
+    def compute(self, dt: float):
+        """Compute the command.
+
+        Args:
+            dt: The time step passed since the last call to compute.
+        """
+        # commands are not affected by the current state
+        pass
+
+    """
     Implementation specific functions.
     """
 
@@ -70,14 +83,5 @@ class BinaryCommand(CommandTerm):
 
     def _update_command(self):
         """Update the command based on the current state."""
-        # commands are not affected by the current state
-        pass
-
-    def compute(self, dt: float):
-        """Compute the command.
-
-        Args:
-            dt: The time step passed since the last call to compute.
-        """
         # commands are not affected by the current state
         pass

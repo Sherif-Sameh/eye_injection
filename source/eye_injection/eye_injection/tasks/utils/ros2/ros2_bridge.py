@@ -92,6 +92,98 @@ class IsaacLabRos2Bridge(Node):
         self._action_zero = torch.zeros(*env.action_space.shape, device=env.device)
         self._action_buffer = torch.zeros(1, *env.action_space.shape, device=env.device)
 
+    def publish_commands(self, cmd: Tensor) -> None:
+        """Publish commands to ROS 2 topic of type Float32MultiArray.
+
+        Args:
+            cmd: Tensor containing the latest commands to publish. Shape is (1, cmd_dim).
+        """
+        assert cmd.dtype == torch.float32
+        assert cmd.ndim == 2
+        cmd = cmd[0].cpu()
+
+        msg = Float32MultiArray()
+        msg.data = cmd.tolist()
+        self._pub_cmd.publish(msg)
+
+    def publish_observations_jointstate(self, obs: Tensor) -> None:
+        """Publish joint state observations to ROS 2 topic of type JointState.
+
+        Args:
+            obs: Tensor containing the latest joint state observations to publish.
+                Shape is (1, 2 * num_joints).
+        """
+        assert obs.dtype == torch.float32
+        assert obs.ndim == 2 and obs.shape[1] == self._num_joints * 2
+        obs = obs[0].cpu()
+
+        msg = JointState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.name = self._joint_names
+        msg.position = obs[: self._num_joints].tolist()
+        msg.velocity = obs[self._num_joints :].tolist()
+        self._pub_obs_js.publish(msg)
+
+    def publish_pose_error(self, env: ManagerBasedRLEnv) -> None:
+        """Publish the computed pose tracking error from the pose command generator.
+
+        Args:
+            env: ManagerBasedRLEnv to interface with ROS 2 using the bridge node.
+        """
+        # extract logged pose error metric from environment
+        command_term: PoseCommand = env.command_manager.get_term("target_pose")
+        pos_error = command_term.metrics["position_error"][0].cpu()
+        rot_error = command_term.metrics["rotation_error"][0].cpu()
+        rot_error = R.from_rotvec(rot_error).as_quat()  # (x, y, z, w)
+
+        # create and publish PoseStamped message
+        msg = PoseStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "base_link"
+        msg.pose.position.x = float(pos_error[0])
+        msg.pose.position.y = float(pos_error[1])
+        msg.pose.position.z = float(pos_error[2])
+        msg.pose.orientation.x = float(rot_error[0])
+        msg.pose.orientation.y = float(rot_error[1])
+        msg.pose.orientation.z = float(rot_error[2])
+        msg.pose.orientation.w = float(rot_error[3])
+        self._pub_perr.publish(msg)
+
+    def reset(self, env: ManagerBasedRLEnv) -> None:
+        """Publish reset signal and reset camera info publisher if available."""
+        msg = Empty()
+        self._pub_rst.publish(msg)
+        if hasattr(self, "_writer_ci"):
+            self._setup_camera_info_publisher(env)
+
+    def action_callback(self, msg: JointTrajectory) -> None:
+        """Callback function for action subscriber.
+
+        Joint action sequences are stored in the action buffer and the action counter is reset.
+
+        Args:
+            msg: JointTrajectory message sent by controller.
+        """
+        self._action_ctr = 0
+        self._action_buffer = (
+            self._action_fn(msg).to(dtype=torch.float32, device=self._device).unsqueeze(1)
+        )  # (num_steps, 1, act_dim)
+
+    def get_action(self) -> Tensor:
+        """Get the current action to apply to environment from the action buffer.
+
+        Note: if the action buffer is empty, the zero action is applied instead.
+
+        Returns:
+            Tensor containing the action to apply to environment. Shape is (1, act_dim).
+        """
+        if self._action_ctr < self._action_buffer.shape[0]:
+            action = self._action_buffer[self._action_ctr]
+            self._action_ctr += 1
+        else:
+            action = self._action_zero
+        return action
+
     @staticmethod
     def _get_action_fn(env: ManagerBasedRLEnv) -> Callable[[JointTrajectory], Tensor]:
         """Get the appropriate action function according to the environment's action space.
@@ -203,95 +295,3 @@ class IsaacLabRos2Bridge(Node):
         params = torch.tensor([camera_info.k[0], camera_info.k[2], camera_info.k[5]])
         params = self.noise.func(params, self.noise)
         return np.array([params[0], 0, params[1], 0, params[0], params[2], 0, 0, 1]).reshape([1, 9])
-
-    def publish_commands(self, cmd: Tensor) -> None:
-        """Publish commands to ROS 2 topic of type Float32MultiArray.
-
-        Args:
-            cmd: Tensor containing the latest commands to publish. Shape is (1, cmd_dim).
-        """
-        assert cmd.dtype == torch.float32
-        assert cmd.ndim == 2
-        cmd = cmd[0].cpu()
-
-        msg = Float32MultiArray()
-        msg.data = cmd.tolist()
-        self._pub_cmd.publish(msg)
-
-    def publish_observations_jointstate(self, obs: Tensor) -> None:
-        """Publish joint state observations to ROS 2 topic of type JointState.
-
-        Args:
-            obs: Tensor containing the latest joint state observations to publish.
-                Shape is (1, 2 * num_joints).
-        """
-        assert obs.dtype == torch.float32
-        assert obs.ndim == 2 and obs.shape[1] == self._num_joints * 2
-        obs = obs[0].cpu()
-
-        msg = JointState()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.name = self._joint_names
-        msg.position = obs[: self._num_joints].tolist()
-        msg.velocity = obs[self._num_joints :].tolist()
-        self._pub_obs_js.publish(msg)
-
-    def publish_pose_error(self, env: ManagerBasedRLEnv) -> None:
-        """Publish the computed pose tracking error from the pose command generator.
-
-        Args:
-            env: ManagerBasedRLEnv to interface with ROS 2 using the bridge node.
-        """
-        # extract logged pose error metric from environment
-        command_term: PoseCommand = env.command_manager.get_term("target_pose")
-        pos_error = command_term.metrics["position_error"][0].cpu()
-        rot_error = command_term.metrics["rotation_error"][0].cpu()
-        rot_error = R.from_rotvec(rot_error).as_quat()  # (x, y, z, w)
-
-        # create and publish PoseStamped message
-        msg = PoseStamped()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "base_link"
-        msg.pose.position.x = float(pos_error[0])
-        msg.pose.position.y = float(pos_error[1])
-        msg.pose.position.z = float(pos_error[2])
-        msg.pose.orientation.x = float(rot_error[0])
-        msg.pose.orientation.y = float(rot_error[1])
-        msg.pose.orientation.z = float(rot_error[2])
-        msg.pose.orientation.w = float(rot_error[3])
-        self._pub_perr.publish(msg)
-
-    def reset(self, env: ManagerBasedRLEnv) -> None:
-        """Publish reset signal and reset camera info publisher if available."""
-        msg = Empty()
-        self._pub_rst.publish(msg)
-        if hasattr(self, "_writer_ci"):
-            self._setup_camera_info_publisher(env)
-
-    def action_callback(self, msg: JointTrajectory) -> None:
-        """Callback function for action subscriber.
-
-        Joint action sequences are stored in the action buffer and the action counter is reset.
-
-        Args:
-            msg: JointTrajectory message sent by controller.
-        """
-        self._action_ctr = 0
-        self._action_buffer = (
-            self._action_fn(msg).to(dtype=torch.float32, device=self._device).unsqueeze(1)
-        )  # (num_steps, 1, act_dim)
-
-    def get_action(self) -> Tensor:
-        """Get the current action to apply to environment from the action buffer.
-
-        Note: if the action buffer is empty, the zero action is applied instead.
-
-        Returns:
-            Tensor containing the action to apply to environment. Shape is (1, act_dim).
-        """
-        if self._action_ctr < self._action_buffer.shape[0]:
-            action = self._action_buffer[self._action_ctr]
-            self._action_ctr += 1
-        else:
-            action = self._action_zero
-        return action

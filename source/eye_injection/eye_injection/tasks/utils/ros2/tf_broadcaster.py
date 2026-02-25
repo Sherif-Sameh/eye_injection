@@ -24,32 +24,6 @@ if TYPE_CHECKING:
     from torch import Tensor
 
 
-@torch.jit.script
-def get_robot_relative_transforms(body_poses: Tensor) -> Tensor:
-    """Convert the body poses from absolute to relative transforms.
-
-    Converts the body poses that are expressed with respect to the world frame to a kinematic
-    chain of relative transforms between each body/link and its parent body/link.
-
-    Args:
-        body_poses: Body/link poses relative to the world frame. Shape is (num_bodies, 7).
-
-    Returns:
-        Body/link poses relative to their parent body/link. Shape is (num_bodies, 7). For the
-            root body/link which has no parent, its transform is kept unchanged.
-    """
-    num_bodies = body_poses.shape[0]
-    rel_pos = torch.clone(body_poses[:, :3])
-    rel_rot = torch.clone(body_poses[:, 3:])
-
-    for i in range(1, num_bodies):
-        rel_pos[i], rel_rot[i] = subtract_frame_transforms(
-            body_poses[i - 1, :3], body_poses[i - 1, 3:], body_poses[i, :3], body_poses[i, 3:]
-        )
-    body_poses_rel = torch.cat([rel_pos, rel_rot], dim=-1)
-    return body_poses_rel
-
-
 class IsaacLabTFBroadcaster(Node):
     """ROS 2 TF2 transform broadcaster for IsaacLab environments.
 
@@ -83,6 +57,83 @@ class IsaacLabTFBroadcaster(Node):
         # Store robot body names + "world"
         asset: Articulation = env.scene["robot"]
         self._body_names = ["world"] + asset.body_names
+
+    def make_static_transforms(self, env: ManagerBasedRLEnv) -> None:
+        """Initialize and send static transforms to TF tree."""
+        if self._has_camera:
+            self._make_static_camera_transform(env)
+
+    def make_robot_transforms(self, env: ManagerBasedRLEnv) -> None:
+        """Create and send robot relative transforms between links to TF tree.
+
+        Args:
+            env: ManagerBasedRLEnv to interface with ROS 2 using the TF broadcaster node.
+        """
+        # Retrieve the robot and absolute poses from environment
+        asset: Articulation = env.scene["robot"]
+        body_poses = asset.data.body_link_pose_w[0, :, :]  # Shape (num_bodies, 7)
+
+        # Convert absolute poses to relative
+        body_poses_rel = _get_robot_relative_transforms(body_poses).cpu()
+
+        # Create transforms for each body
+        transforms = []
+        t_sim = env.common_step_counter * env.step_dt
+        stamp = Time(seconds=t_sim).to_msg()
+        for i, pose_rel in enumerate(body_poses_rel):
+            t = TransformStamped()
+            t.header.stamp = stamp
+            t.header.frame_id = self._body_names[i]
+            t.child_frame_id = self._body_names[i + 1]
+
+            t.transform.translation.x = float(pose_rel[0])
+            t.transform.translation.y = float(pose_rel[1])
+            t.transform.translation.z = float(pose_rel[2])
+
+            t.transform.rotation.w = float(pose_rel[3])
+            t.transform.rotation.x = float(pose_rel[4])
+            t.transform.rotation.y = float(pose_rel[5])
+            t.transform.rotation.z = float(pose_rel[6])
+            transforms.append(t)
+
+        # Send transforms
+        self._tf_broadcaster.sendTransform(transforms)
+
+    def make_tag_transforms(self, env: ManagerBasedRLEnv, cmd: Tensor) -> None:
+        """Create and send AprilTag transforms to TF tree if available in command.
+
+        Args:
+            env: ManagerBasedRLEnv to interface with ROS 2 using the TF broadcaster node.
+            cmd: Tensor containing the latest commands from the environment. Shape is (1, cmd_dim).
+        """
+        if not self._has_tag_cmd:
+            return
+        cmd = cmd[0].cpu()
+        n_tags = cmd.shape[0] // 8
+
+        # Create transforms for each body
+        transforms = []
+        t_sim = env.common_step_counter * env.step_dt
+        stamp = Time(seconds=t_sim).to_msg()
+        for i in range(n_tags):
+            tag_id = int(cmd[i * 8])
+            t = TransformStamped()
+            t.header.stamp = stamp
+            t.header.frame_id = f"tag36h11:{tag_id}"
+            t.child_frame_id = f"camera_color_optical_frame:{tag_id}"
+
+            t.transform.translation.x = float(cmd[i * 8 + 1])
+            t.transform.translation.y = float(cmd[i * 8 + 2])
+            t.transform.translation.z = float(cmd[i * 8 + 3])
+
+            t.transform.rotation.w = float(cmd[i * 8 + 4])
+            t.transform.rotation.x = float(cmd[i * 8 + 5])
+            t.transform.rotation.y = float(cmd[i * 8 + 6])
+            t.transform.rotation.z = float(cmd[i * 8 + 7])
+            transforms.append(t)
+
+        # Send transforms
+        self._tf_broadcaster.sendTransform(transforms)
 
     def _make_static_camera_transform(self, env: ManagerBasedRLEnv) -> None:
         """Initialize and send static transform from camera to parent link frame.
@@ -155,79 +206,28 @@ class IsaacLabTFBroadcaster(Node):
         quat = R.from_rotvec(pose[3:].numpy()).as_quat(scalar_first=True)
         return tuple(pose[:3].tolist()), tuple(quat.tolist())
 
-    def make_static_transforms(self, env: ManagerBasedRLEnv) -> None:
-        """Initialize and send static transforms to TF tree."""
-        if self._has_camera:
-            self._make_static_camera_transform(env)
 
-    def make_robot_transforms(self, env: ManagerBasedRLEnv) -> None:
-        """Create and send robot relative transforms between links to TF tree.
+@torch.jit.script
+def _get_robot_relative_transforms(body_poses: Tensor) -> Tensor:
+    """Convert the body poses from absolute to relative transforms.
 
-        Args:
-            env: ManagerBasedRLEnv to interface with ROS 2 using the TF broadcaster node.
-        """
-        # Retrieve the robot and absolute poses from environment
-        asset: Articulation = env.scene["robot"]
-        body_poses = asset.data.body_link_pose_w[0, :, :]  # Shape (num_bodies, 7)
+    Converts the body poses that are expressed with respect to the world frame to a kinematic
+    chain of relative transforms between each body/link and its parent body/link.
 
-        # Convert absolute poses to relative
-        body_poses_rel = get_robot_relative_transforms(body_poses).cpu()
+    Args:
+        body_poses: Body/link poses relative to the world frame. Shape is (num_bodies, 7).
 
-        # Create transforms for each body
-        transforms = []
-        t_sim = env.common_step_counter * env.step_dt
-        stamp = Time(seconds=t_sim).to_msg()
-        for i, pose_rel in enumerate(body_poses_rel):
-            t = TransformStamped()
-            t.header.stamp = stamp
-            t.header.frame_id = self._body_names[i]
-            t.child_frame_id = self._body_names[i + 1]
+    Returns:
+        Body/link poses relative to their parent body/link. Shape is (num_bodies, 7). For the
+            root body/link which has no parent, its transform is kept unchanged.
+    """
+    num_bodies = body_poses.shape[0]
+    rel_pos = torch.clone(body_poses[:, :3])
+    rel_rot = torch.clone(body_poses[:, 3:])
 
-            t.transform.translation.x = float(pose_rel[0])
-            t.transform.translation.y = float(pose_rel[1])
-            t.transform.translation.z = float(pose_rel[2])
-
-            t.transform.rotation.w = float(pose_rel[3])
-            t.transform.rotation.x = float(pose_rel[4])
-            t.transform.rotation.y = float(pose_rel[5])
-            t.transform.rotation.z = float(pose_rel[6])
-            transforms.append(t)
-
-        # Send transforms
-        self._tf_broadcaster.sendTransform(transforms)
-
-    def make_tag_transforms(self, env: ManagerBasedRLEnv, cmd: Tensor) -> None:
-        """Create and send AprilTag transforms to TF tree if available in command.
-
-        Args:
-            env: ManagerBasedRLEnv to interface with ROS 2 using the TF broadcaster node.
-            cmd: Tensor containing the latest commands from the environment. Shape is (1, cmd_dim).
-        """
-        if not self._has_tag_cmd:
-            return
-        cmd = cmd[0].cpu()
-        n_tags = cmd.shape[0] // 8
-
-        # Create transforms for each body
-        transforms = []
-        t_sim = env.common_step_counter * env.step_dt
-        stamp = Time(seconds=t_sim).to_msg()
-        for i in range(n_tags):
-            tag_id = int(cmd[i * 8])
-            t = TransformStamped()
-            t.header.stamp = stamp
-            t.header.frame_id = f"tag36h11:{tag_id}"
-            t.child_frame_id = f"camera_color_optical_frame:{tag_id}"
-
-            t.transform.translation.x = float(cmd[i * 8 + 1])
-            t.transform.translation.y = float(cmd[i * 8 + 2])
-            t.transform.translation.z = float(cmd[i * 8 + 3])
-
-            t.transform.rotation.w = float(cmd[i * 8 + 4])
-            t.transform.rotation.x = float(cmd[i * 8 + 5])
-            t.transform.rotation.y = float(cmd[i * 8 + 6])
-            t.transform.rotation.z = float(cmd[i * 8 + 7])
-            transforms.append(t)
-
-        # Send transforms
-        self._tf_broadcaster.sendTransform(transforms)
+    for i in range(1, num_bodies):
+        rel_pos[i], rel_rot[i] = subtract_frame_transforms(
+            body_poses[i - 1, :3], body_poses[i - 1, 3:], body_poses[i, :3], body_poses[i, 3:]
+        )
+    body_poses_rel = torch.cat([rel_pos, rel_rot], dim=-1)
+    return body_poses_rel
