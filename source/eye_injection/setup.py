@@ -6,8 +6,8 @@
 """Installation script for the 'eye_injection' python package."""
 
 import os
-import toml
 
+import toml
 from setuptools import setup
 
 # Obtain the extension data from the extension.toml file
@@ -18,7 +18,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # NOTE: Add dependencies
-    "psutil",
+    "psutil"
 ]
 
 # Installation operation

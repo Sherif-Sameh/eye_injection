@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING, Literal
 
 import isaaclab.utils.math as math_utils
 import torch
-from isaaclab.assets import Articulation
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
     from isaaclab.managers import EventTermCfg
 
@@ -44,31 +44,20 @@ class apply_external_gravity_force(ManagerTermBase):
         self.body_masses = asset.data.default_mass[:, self.body_ids, None]
 
         # initialize function for random sampling gravity's magnitude
-        distribution: Literal["uniform", "log_uniform", "gaussian"] = cfg.params[
-            "distribution"
-        ]
+        distribution: Literal["uniform", "log_uniform", "gaussian"] = cfg.params["distribution"]
         dp1, dp2 = cfg.params["distribution_params"]
         match distribution:
             case "uniform":
                 self.sample_fn = partial(
-                    math_utils.sample_uniform,
-                    lower=dp1,
-                    upper=dp2,
-                    device=env.device,
+                    math_utils.sample_uniform, lower=dp1, upper=dp2, device=env.device
                 )
             case "log_uniform":
                 self.sample_fn = partial(
-                    math_utils.sample_log_uniform,
-                    lower=dp1,
-                    upper=dp2,
-                    device=env.device,
+                    math_utils.sample_log_uniform, lower=dp1, upper=dp2, device=env.device
                 )
             case "gaussian":
                 self.sample_fn = partial(
-                    math_utils.sample_gaussian,
-                    mean=dp1,
-                    std=dp2,
-                    device=env.device,
+                    math_utils.sample_gaussian, mean=dp1, std=dp2, device=env.device
                 )
 
     def __call__(
@@ -93,11 +82,7 @@ class apply_external_gravity_force(ManagerTermBase):
         """
         # extract asset
         asset: Articulation = env.scene[asset_cfg.name]
-        env_ids = (
-            torch.arange(env.num_envs, device=env.device)
-            if env_ids is None
-            else env_ids
-        )
+        env_ids = torch.arange(env.num_envs, device=env.device) if env_ids is None else env_ids
 
         # sample gravity's magnitude and convert to a gravity vector
         gravity = self.sample_fn(size=(len(env_ids,)))  # fmt: skip

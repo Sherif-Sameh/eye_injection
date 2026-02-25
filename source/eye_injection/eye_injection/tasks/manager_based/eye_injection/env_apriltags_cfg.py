@@ -27,12 +27,10 @@ class EyeInjectionSceneAprilTagsCfg(EyeInjectionSceneImageCfg):
             usd_path=str(Path(__file__).parent / "assets/Plane.usd"),
             scale=(0.1, 0.1, 1.0),
             visual_material=sim_utils.MdlFileCfg(
-                mdl_path=str(Path(__file__).parent / "materials/AprilTag_00.mdl"),
+                mdl_path=str(Path(__file__).parent / "materials/AprilTag_00.mdl")
             ),
         ),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.2, 0.75, 0.794),
-        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.2, 0.75, 0.794)),
     )
     marker_2 = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Bed/Marker_2",
@@ -40,12 +38,10 @@ class EyeInjectionSceneAprilTagsCfg(EyeInjectionSceneImageCfg):
             usd_path=str(Path(__file__).parent / "assets/Plane.usd"),
             scale=(0.1, 0.1, 1.0),
             visual_material=sim_utils.MdlFileCfg(
-                mdl_path=str(Path(__file__).parent / "materials/AprilTag_01.mdl"),
+                mdl_path=str(Path(__file__).parent / "materials/AprilTag_01.mdl")
             ),
         ),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(-0.2, 0.75, 0.794),
-        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.2, 0.75, 0.794)),
     )
 
 

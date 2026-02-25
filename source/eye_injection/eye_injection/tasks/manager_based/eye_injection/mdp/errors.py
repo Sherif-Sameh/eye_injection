@@ -38,9 +38,7 @@ def position_command_error(command: Tensor, asset: FrameTransformer) -> Tensor:
 
 
 def position_command_error_tanh(
-    command: Tensor,
-    asset: FrameTransformer,
-    std: float = 1.0,
+    command: Tensor, asset: FrameTransformer, std: float = 1.0
 ) -> Tensor:
     """Compute the position error using the tanh kernel.
 

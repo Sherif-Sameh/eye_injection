@@ -4,7 +4,7 @@ import os
 import random
 from dataclasses import fields
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import tomllib
@@ -125,9 +125,7 @@ def apply_overrides(cfg: object, overrides: dict[str, Any]) -> object:
 ##
 
 
-def _apply_overrides_dict(
-    cfg: dict[str, Any], overrides: dict[str, Any]
-) -> dict[str, Any]:
+def _apply_overrides_dict(cfg: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
     """Apply overrides to a configuration dictionary from given dictionary.
 
     **Warning**: Nested dicts in the configuration are ignored and not overriden.

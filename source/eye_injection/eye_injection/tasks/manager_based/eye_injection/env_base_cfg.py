@@ -45,9 +45,7 @@ class EyeInjectionSceneBaseCfg(InteractiveSceneCfg):
     # ground
     ground = ROOM_CFG["Ground"].replace(
         prim_path="{ENV_REGEX_NS}/Ground",
-        spawn=ROOM_CFG["Ground"].spawn.replace(
-            size=(3.0, 3.0, ROOM_THICKNESS),
-        ),
+        spawn=ROOM_CFG["Ground"].spawn.replace(size=(3.0, 3.0, ROOM_THICKNESS)),
     )
 
     # robot
@@ -55,8 +53,7 @@ class EyeInjectionSceneBaseCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=UR10e_CFG.spawn.replace(
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=True,
-                max_depenetration_velocity=5.0,
+                disable_gravity=True, max_depenetration_velocity=5.0
             ),
             activate_contact_sensors=True,
         ),
@@ -88,9 +85,8 @@ class EyeInjectionSceneBaseCfg(InteractiveSceneCfg):
         visualizer_cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer"),
         target_frames=[
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link",
-                name="end_effector",
-            ),
+                prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link", name="end_effector"
+            )
         ],
         debug_vis=False,
     )
@@ -107,11 +103,10 @@ class EyeInjectionSceneBaseCfg(InteractiveSceneCfg):
     bed = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Bed",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=str(Path(__file__).parent / "assets/ExaminationBed.usd"),
+            usd_path=str(Path(__file__).parent / "assets/ExaminationBed.usd")
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.0),
-            rot=(0.7071, 0.0, 0.0, -0.7071),
+            pos=(0.0, 0.0, 0.0), rot=(0.7071, 0.0, 0.0, -0.7071)
         ),
     )
 
@@ -119,12 +114,10 @@ class EyeInjectionSceneBaseCfg(InteractiveSceneCfg):
     person = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Bed/Person",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=str(Path(__file__).parent / "assets/Person.usd"),
-            scale=(1.0, 1.0, 1.0),
+            usd_path=str(Path(__file__).parent / "assets/Person.usd"), scale=(1.0, 1.0, 1.0)
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.0, -0.9, 0.975),
-            rot=(0.70711, -0.70711, 0.0, 0.0),
+            pos=(0.0, -0.9, 0.975), rot=(0.70711, -0.70711, 0.0, 0.0)
         ),
     )
 
@@ -246,10 +239,7 @@ class EventBaseCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "pose_range": {
-                "x": (-0.05, 0.05),
-                "y": (-0.05, 0.05),
-            },
+            "pose_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05)},
             "velocity_range": {},
         },
     )
@@ -311,9 +301,7 @@ class RewardsBaseCfg:
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.005)
     # (5) Joint velocity penalty
     joint_vel = RewTerm(
-        func=mdp.joint_vel_l2,
-        weight=-0.0001,
-        params={"asset_cfg": SceneEntityCfg("robot")},
+        func=mdp.joint_vel_l2, weight=-0.0001, params={"asset_cfg": SceneEntityCfg("robot")}
     )
     # (6) Failure penalty
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)

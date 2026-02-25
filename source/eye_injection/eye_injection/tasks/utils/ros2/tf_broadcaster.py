@@ -44,10 +44,7 @@ def get_robot_relative_transforms(body_poses: Tensor) -> Tensor:
 
     for i in range(1, num_bodies):
         rel_pos[i], rel_rot[i] = subtract_frame_transforms(
-            body_poses[i - 1, :3],
-            body_poses[i - 1, 3:],
-            body_poses[i, :3],
-            body_poses[i, 3:],
+            body_poses[i - 1, :3], body_poses[i - 1, 3:], body_poses[i, :3], body_poses[i, 3:]
         )
     body_poses_rel = torch.cat([rel_pos, rel_rot], dim=-1)
     return body_poses_rel
@@ -106,9 +103,7 @@ class IsaacLabTFBroadcaster(Node):
         if offset.convention != "ros":
             rot_gt = tuple(
                 convert_camera_frame_orientation_convention(
-                    torch.tensor(rot_gt),
-                    origin=offset.convention,
-                    target="ros",
+                    torch.tensor(rot_gt), origin=offset.convention, target="ros"
                 ).tolist()
             )
 
@@ -139,9 +134,7 @@ class IsaacLabTFBroadcaster(Node):
         # Send static transforms
         self._tf_static_broadcaster.sendTransform(transforms)
 
-    def _apply_noise_to_camera_transform(
-        self, pos: tuple, quat: tuple
-    ) -> tuple[tuple, tuple]:
+    def _apply_noise_to_camera_transform(self, pos: tuple, quat: tuple) -> tuple[tuple, tuple]:
         """Apply randomly sampled noise to the given camera transform.
 
         The configuration of the noise is derived from the instance's `noise` attribute.

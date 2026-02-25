@@ -23,9 +23,7 @@ from eye_injection.tasks.utils.ros2 import actions
 # Warnings disabled from module to prevent repeated harmless warnings
 # related to the following issue: https://github.com/isaac-sim/IsaacSim/issues/403
 # most likely because simulation stepping is handled through IsaacLab's API instead of IsaacSim
-carb.settings.get_settings().set(
-    "/log/channels/isaacsim.core.simulation_manager.plugin", "error"
-)
+carb.settings.get_settings().set("/log/channels/isaacsim.core.simulation_manager.plugin", "error")
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -64,15 +62,11 @@ class IsaacLabRos2Bridge(Node):
 
         # Publishers
         self._pub_cmd = self.create_publisher(Float32MultiArray, "/isaaclab/command", 0)
-        self._pub_obs_js = self.create_publisher(
-            JointState, "/isaaclab/joint_states", 0
-        )
+        self._pub_obs_js = self.create_publisher(JointState, "/isaaclab/joint_states", 0)
         self._pub_perr = self.create_publisher(PoseStamped, "/isaaclab/pose_error", 10)
         self._pub_rst = self.create_publisher(Empty, "/isaaclab/reset", 0)
 
-        has_camera = any(
-            [len(space.shape) == 4 for space in env.observation_space.spaces.values()]
-        )
+        has_camera = any([len(space.shape) == 4 for space in env.observation_space.spaces.values()])
         if has_camera:
             # Setup camera publishers
             self._setup_observations_image_publisher(env)
@@ -99,9 +93,7 @@ class IsaacLabRos2Bridge(Node):
         self._action_buffer = torch.zeros(1, *env.action_space.shape, device=env.device)
 
     @staticmethod
-    def _get_action_fn(
-        env: ManagerBasedRLEnv,
-    ) -> Callable[[JointTrajectory], Tensor]:
+    def _get_action_fn(env: ManagerBasedRLEnv) -> Callable[[JointTrajectory], Tensor]:
         """Get the appropriate action function according to the environment's action space.
 
         Action functions are used to extract the appropriate fields from a JointTrajectory msg
@@ -210,19 +202,7 @@ class IsaacLabRos2Bridge(Node):
 
         params = torch.tensor([camera_info.k[0], camera_info.k[2], camera_info.k[5]])
         params = self.noise.func(params, self.noise)
-        return np.array(
-            [
-                params[0],
-                0,
-                params[1],
-                0,
-                params[0],
-                params[2],
-                0,
-                0,
-                1,
-            ]
-        ).reshape([1, 9])
+        return np.array([params[0], 0, params[1], 0, params[0], params[2], 0, 0, 1]).reshape([1, 9])
 
     def publish_commands(self, cmd: Tensor) -> None:
         """Publish commands to ROS 2 topic of type Float32MultiArray.
@@ -298,9 +278,7 @@ class IsaacLabRos2Bridge(Node):
         """
         self._action_ctr = 0
         self._action_buffer = (
-            self._action_fn(msg)
-            .to(dtype=torch.float32, device=self._device)
-            .unsqueeze(1)
+            self._action_fn(msg).to(dtype=torch.float32, device=self._device).unsqueeze(1)
         )  # (num_steps, 1, act_dim)
 
     def get_action(self) -> Tensor:

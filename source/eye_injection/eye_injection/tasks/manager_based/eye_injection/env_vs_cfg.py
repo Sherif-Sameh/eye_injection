@@ -48,10 +48,7 @@ class CommandsVsCfg(CommandsBaseCfg):
     # Tag pose command for retargeting pose commands to AprilTags
     tag_pose = mdp.TagPoseCommandCfg(
         camera_asset_name="camera",
-        tag_prim_names=[
-            "/World/envs/env_.*/Bed/Marker_1",
-            "/World/envs/env_.*/Bed/Marker_2",
-        ],
+        tag_prim_names=["/World/envs/env_.*/Bed/Marker_1", "/World/envs/env_.*/Bed/Marker_2"],
         tag_ids=[0, 1],
         pose_source_prim_name="/World/envs/env_.*/Robot/base_link",
         pose_command_name="target_pose",
@@ -88,9 +85,7 @@ class ObservationsVsCfg(ObservationsImageCfg):
         """Modified observations for policy commands group."""
 
         # observation terms (order preserved)
-        tag_pose_command = ObsTerm(
-            func=mdp.generated_commands, params={"command_name": "tag_pose"}
-        )
+        tag_pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "tag_pose"})
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -144,10 +139,7 @@ class EyeInjectionEnvVsCfg(EyeInjectionEnvEnclosedCfg):
     # Simulation settings
     sim: SimulationCfg = SimulationCfg(
         physx=PhysxReducedCfg(
-            partition_reduction=1,
-            memory_reduction=4,
-            has_soft_bodies=False,
-            has_particles=False,
+            partition_reduction=1, memory_reduction=4, has_soft_bodies=False, has_particles=False
         )
     )
     # Scene settings

@@ -9,10 +9,7 @@ from isaaclab.utils import configclass
 
 from eye_injection.tasks.utils.isaac.room_cfg import ROOM_CFG
 
-from .env_apriltags_cfg import (
-    EyeInjectionEnvAprilTagsCfg,
-    EyeInjectionSceneAprilTagsCfg,
-)
+from .env_apriltags_cfg import EyeInjectionEnvAprilTagsCfg, EyeInjectionSceneAprilTagsCfg
 
 ##
 # Scene definition

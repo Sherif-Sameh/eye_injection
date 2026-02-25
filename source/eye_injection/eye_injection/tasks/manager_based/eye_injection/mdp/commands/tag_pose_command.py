@@ -100,9 +100,7 @@ class TagPoseCommand(CommandTerm):
             torch.tensor(self.cfg.tag_ids, dtype=torch.float32, device=self.device),
             (env.num_envs, 1),
         )  # (N, nT)
-        self.pose_command = torch.zeros(
-            self.num_envs, self.n_tags * 7, device=self.device
-        )
+        self.pose_command = torch.zeros(self.num_envs, self.n_tags * 7, device=self.device)
         for i in range(self.n_tags):
             self.pose_command[:, i * 7 + 3] = 1.0  # valid unit quaternions
 
@@ -158,10 +156,7 @@ class TagPoseCommand(CommandTerm):
 
         # compute camera pose relative to tags (Tag <- Camera (target))
         pos_cam_tag, rot_cam_tag = combine_frame_transforms(
-            self.pose_base_tag[:, :3],
-            self.pose_base_tag[:, 3:],
-            pos_cam_base,
-            rot_cam_base,
+            self.pose_base_tag[:, :3], self.pose_base_tag[:, 3:], pos_cam_base, rot_cam_base
         )
 
         # update stored pose command

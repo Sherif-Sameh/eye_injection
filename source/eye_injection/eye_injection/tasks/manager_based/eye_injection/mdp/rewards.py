@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING, Any, Callable, Sequence
 
 import torch
 from isaaclab.managers import ManagerTermBase, RewardTermCfg
-from isaaclab.sensors import FrameTransformer
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.sensors import FrameTransformer
     from torch import Tensor
 
 
@@ -28,17 +28,13 @@ class command_error_staged(ManagerTermBase):
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         # initialize the base class
         super().__init__(cfg, env)
-        assert "ft_asset_name" in cfg.params, (
-            "FrameTransformer asset name must be specified."
-        )
+        assert "ft_asset_name" in cfg.params, "FrameTransformer asset name must be specified."
         assert "command_name" in cfg.params, "PoseCommand name must be specified."
         assert "stage_weights" in cfg.params, "Stage weights must be specified."
         assert "error_fn" in cfg.params, "Error function must be specified."
 
         # find and store the stage weights as tensor
-        self.stage_weights = torch.tensor(
-            cfg.params.get("stage_weights"), device=env.device
-        )
+        self.stage_weights = torch.tensor(cfg.params.get("stage_weights"), device=env.device)
 
     def __call__(
         self,

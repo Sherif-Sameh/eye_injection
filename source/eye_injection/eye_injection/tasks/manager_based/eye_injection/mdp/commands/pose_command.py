@@ -64,12 +64,8 @@ class PoseCommand(CommandTerm):
         self.vec_approach = self._get_approach_vectors(*self.pose_target)
 
         # offset the target poses along the negative direction of the approach vectors
-        self.pose_target[0][:, :3] -= (
-            self.vec_approach[0] * self.cfg.motion_cfg.target_offset
-        )
-        self.pose_target[1][:, :3] -= (
-            self.vec_approach[1] * self.cfg.motion_cfg.target_offset
-        )
+        self.pose_target[0][:, :3] -= self.vec_approach[0] * self.cfg.motion_cfg.target_offset
+        self.pose_target[1][:, :3] -= self.vec_approach[1] * self.cfg.motion_cfg.target_offset
 
         # create buffers for storing the current pose target and approach vector
         self.pose_target_curr = torch.zeros_like(self.pose_target[0])
@@ -78,15 +74,11 @@ class PoseCommand(CommandTerm):
         # compute number of steps for approach, stationary and retreat phases
         self.dt = env.step_dt
         self.n_steps_approach = math.floor(
-            (self.cfg.motion_cfg.approach_offset / self.cfg.motion_cfg.approach_vel)
-            / env.step_dt
+            (self.cfg.motion_cfg.approach_offset / self.cfg.motion_cfg.approach_vel) / env.step_dt
         )
-        self.n_steps_stationary = math.ceil(
-            self.cfg.motion_cfg.stationary_time / env.step_dt
-        )
+        self.n_steps_stationary = math.ceil(self.cfg.motion_cfg.stationary_time / env.step_dt)
         self.n_steps_retreat = math.floor(
-            (self.cfg.motion_cfg.approach_offset / self.cfg.motion_cfg.retreat_vel)
-            / env.step_dt
+            (self.cfg.motion_cfg.approach_offset / self.cfg.motion_cfg.retreat_vel) / env.step_dt
         )
 
         # create buffers to store the command
@@ -97,12 +89,8 @@ class PoseCommand(CommandTerm):
         self.pose_command_w = torch.zeros_like(self.pose_command_b)
 
         # -- metrics
-        self.metrics["position_error"] = torch.zeros(
-            self.num_envs, 3, device=self.device
-        )
-        self.metrics["rotation_error"] = torch.zeros(
-            self.num_envs, 3, device=self.device
-        )
+        self.metrics["position_error"] = torch.zeros(self.num_envs, 3, device=self.device)
+        self.metrics["rotation_error"] = torch.zeros(self.num_envs, 3, device=self.device)
 
     def __str__(self) -> str:
         msg = "PoseCommand:\n"
@@ -137,22 +125,18 @@ class PoseCommand(CommandTerm):
         through the axis-angle 3D representation.
         """
         # transform command from base frame to simulation world frame
-        self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = (
-            combine_frame_transforms(
-                self.robot.data.root_pos_w,
-                self.robot.data.root_quat_w,
-                self.pose_command_b[:, :3],
-                self.pose_command_b[:, 3:],
-            )
+        self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
+            self.robot.data.root_pos_w,
+            self.robot.data.root_quat_w,
+            self.pose_command_b[:, :3],
+            self.pose_command_b[:, 3:],
         )
         # compute the error
-        self.metrics["position_error"], self.metrics["rotation_error"] = (
-            compute_pose_error(
-                self.pose_command_w[:, :3],
-                self.pose_command_w[:, 3:],
-                self.robot.data.body_pos_w[:, self.body_idx],
-                self.robot.data.body_quat_w[:, self.body_idx],
-            )
+        self.metrics["position_error"], self.metrics["rotation_error"] = compute_pose_error(
+            self.pose_command_w[:, :3],
+            self.pose_command_w[:, 3:],
+            self.robot.data.body_pos_w[:, self.body_idx],
+            self.robot.data.body_quat_w[:, self.body_idx],
         )
 
     def _resample_command(self, env_ids: Sequence[int]) -> None:
@@ -197,9 +181,7 @@ class PoseCommand(CommandTerm):
             move_done = torch.logical_and(move_active, ~move_continue)
 
             self.pose_command_b[move_continue, :3] += (
-                self.vec_approach_curr[move_continue]
-                * self.cfg.motion_cfg.approach_vel
-                * self.dt
+                self.vec_approach_curr[move_continue] * self.cfg.motion_cfg.approach_vel * self.dt
             )
             self.command_counter[move_continue] += 1
             self.pose_command_b[move_done] = self.pose_target_curr[move_done]
@@ -227,15 +209,12 @@ class PoseCommand(CommandTerm):
             retreat_done = torch.logical_and(retreat_active, ~retreat_continue)
 
             self.pose_command_b[retreat_continue, :3] -= (
-                self.vec_approach_curr[retreat_continue]
-                * self.cfg.motion_cfg.retreat_vel
-                * self.dt
+                self.vec_approach_curr[retreat_continue] * self.cfg.motion_cfg.retreat_vel * self.dt
             )
             self.command_counter[retreat_continue] += 1
             self.pose_command_b[retreat_done, :3] = (
                 self.pose_target_curr[retreat_done, :3]
-                - self.vec_approach_curr[retreat_done]
-                * self.cfg.motion_cfg.approach_offset
+                - self.vec_approach_curr[retreat_done] * self.cfg.motion_cfg.approach_offset
             )
             self.state[retreat_done] = 4
             self.command_counter[retreat_done] = 0
@@ -254,9 +233,7 @@ class PoseCommand(CommandTerm):
         if debug_vis:
             if not hasattr(self, "goal_pose_visualizer"):
                 # -- goal pose
-                self.goal_pose_visualizer = VisualizationMarkers(
-                    self.cfg.goal_pose_visualizer_cfg
-                )
+                self.goal_pose_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
                 # -- current body pose
                 self.current_pose_visualizer = VisualizationMarkers(
                     self.cfg.current_pose_visualizer_cfg
@@ -280,14 +257,10 @@ class PoseCommand(CommandTerm):
             return
         # update the markers
         # -- goal pose
-        self.goal_pose_visualizer.visualize(
-            self.pose_command_w[:, :3], self.pose_command_w[:, 3:]
-        )
+        self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
         # -- current body pose
         body_link_pose_w = self.robot.data.body_link_pose_w[:, self.body_idx]
-        self.current_pose_visualizer.visualize(
-            body_link_pose_w[:, :3], body_link_pose_w[:, 3:]
-        )
+        self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:])
 
     """
     Private helper functions.
@@ -314,9 +287,7 @@ class PoseCommand(CommandTerm):
 
         # extract the relative poses of the target prims
         pos_1, quat_1, pos_2, quat_2 = [], [], [], []
-        for t_prim_1, t_prim_2, r_prim in zip(
-            target_prims[0], target_prims[1], ref_prims
-        ):
+        for t_prim_1, t_prim_2, r_prim in zip(target_prims[0], target_prims[1], ref_prims):
             # first target
             pos, quat = sim_utils.resolve_prim_pose(t_prim_1, ref_prim=r_prim)
             pos_1.append(torch.tensor(pos))
@@ -342,9 +313,7 @@ class PoseCommand(CommandTerm):
         pose_2 = torch.cat([pos_2, quat_2], dim=-1)
         return pose_1, pose_2
 
-    def _get_approach_vectors(
-        self, pose_1: Tensor, pose_2: Tensor
-    ) -> tuple[Tensor, Tensor]:
+    def _get_approach_vectors(self, pose_1: Tensor, pose_2: Tensor) -> tuple[Tensor, Tensor]:
         """Get the approach trajectories according to the target poses and motion configuration.
 
         Args:

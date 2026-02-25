@@ -16,18 +16,14 @@ class PhysxReducedCfg(PhysxCfg):
     def __post_init__(self):
         assert self.partition_reduction > 0, "Reduction factor must be positive."
         if self.partition_reduction != 1:
-            assert self.partition_reduction % 2 == 0, (
-                "Reduction factor must be a multiple of 2."
-            )
+            assert self.partition_reduction % 2 == 0, "Reduction factor must be a multiple of 2."
             self.gpu_max_num_partitions = max(
                 self.gpu_max_num_partitions / self.partition_reduction, 2
             )
 
         assert self.memory_reduction > 0, "Reduction factor must be positive."
         if self.memory_reduction != 1:
-            assert self.memory_reduction % 2 == 0, (
-                "Reduction factor must be a multiple of 2."
-            )
+            assert self.memory_reduction % 2 == 0, "Reduction factor must be a multiple of 2."
             for field in fields(self):
                 name = field.name
                 if name.startswith("gpu_") and name != "gpu_max_num_partitions":

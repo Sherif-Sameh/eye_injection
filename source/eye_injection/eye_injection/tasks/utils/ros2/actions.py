@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-from trajectory_msgs.msg import JointTrajectory
 
 if TYPE_CHECKING:
     from torch import Tensor
+    from trajectory_msgs.msg import JointTrajectory
 
 
 def position_action(msg: JointTrajectory) -> Tensor:
@@ -37,9 +37,7 @@ def position_action_velocity_ff(msg: JointTrajectory) -> Tensor:
         Tensor containing the joint position and velocity actions. Shape is
             (num_points, num_joints * 2).
     """
-    action = np.array(
-        [np.concatenate([pt.positions, pt.velocities], axis=-1) for pt in msg.points]
-    )
+    action = np.array([np.concatenate([pt.positions, pt.velocities], axis=-1) for pt in msg.points])
     return torch.from_numpy(action)
 
 
@@ -55,9 +53,7 @@ def position_action_effort_ff(msg: JointTrajectory) -> Tensor:
         Tensor containing the joint position and effort actions. Shape is
             (num_points, num_joints * 2).
     """
-    action = np.array(
-        [np.concatenate([pt.positions, pt.effort], axis=-1) for pt in msg.points]
-    )
+    action = np.array([np.concatenate([pt.positions, pt.effort], axis=-1) for pt in msg.points])
     return torch.from_numpy(action)
 
 
@@ -74,10 +70,7 @@ def position_action_velocity_effort_ff(msg: JointTrajectory) -> Tensor:
             (num_points, num_joints * 3).
     """
     action = np.array(
-        [
-            np.concatenate([pt.positions, pt.velocities, pt.effort], axis=-1)
-            for pt in msg.points
-        ]
+        [np.concatenate([pt.positions, pt.velocities, pt.effort], axis=-1) for pt in msg.points]
     )
     return torch.from_numpy(action)
 
@@ -109,9 +102,7 @@ def velocity_action_effort_ff(msg: JointTrajectory) -> Tensor:
         Tensor containing the joint velocity and effort actions. Shape is
             (num_points, num_joints * 2).
     """
-    action = np.array(
-        [np.concatenate([pt.velocities, pt.effort], axis=-1) for pt in msg.points]
-    )
+    action = np.array([np.concatenate([pt.velocities, pt.effort], axis=-1) for pt in msg.points])
     return torch.from_numpy(action)
 
 

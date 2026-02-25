@@ -45,9 +45,7 @@ class EyeInjectionSceneImageCfg(EyeInjectionSceneBaseCfg):
             clipping_range=(0.1, 1.0e5),
         ),
         offset=TiledCameraCfg.OffsetCfg(
-            pos=(-0.06, 0.0, -0.035),
-            rot=(1.0, 0.0, 0.0, 0.0),
-            convention="ros",
+            pos=(-0.06, 0.0, -0.035), rot=(1.0, 0.0, 0.0, 0.0), convention="ros"
         ),
     )
 
@@ -68,11 +66,7 @@ class ObservationsImageCfg(ObservationsBaseCfg):
         # observation terms (order preserved)
         image = ObsTerm(
             func=mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("camera"),
-                "data_type": "rgb",
-                "normalize": False,
-            },
+            params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb", "normalize": False},
             history_length=0,
         )
 

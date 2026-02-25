@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 class BinaryCommand(CommandTerm):
     """Binary command term for uniformly generating binary goals between 0 and 1.
-    
+
     Commands are only resampled at episode resets.
     """
 
@@ -45,7 +45,7 @@ class BinaryCommand(CommandTerm):
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
         msg += f"\tResampling time range: {self.cfg.resampling_time_range}"
         return msg
-        
+
     """
     Properties
     """
@@ -58,7 +58,7 @@ class BinaryCommand(CommandTerm):
     """
     Implementation specific functions.
     """
-    
+
     def _update_metrics(self) -> None:
         """Update the metrics based on the current state."""
         # no metrics to track currently
@@ -72,7 +72,7 @@ class BinaryCommand(CommandTerm):
         """Update the command based on the current state."""
         # commands are not affected by the current state
         pass
-    
+
     def compute(self, dt: float):
         """Compute the command.
 
