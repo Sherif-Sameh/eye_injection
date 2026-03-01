@@ -93,16 +93,17 @@ class apply_external_gravity_force(ManagerTermBase):
         # convert gravity vectors to per-body force vectors
         forces = gravity[:, None, :] * self.body_masses[env_ids]
 
-        # rotate forces by CoM orientation
-        com_pose_w = asset.data.body_com_pose_w[env_ids]
-        forces = math_utils.quat_apply_inverse(com_pose_w[:, self.body_ids, 3:], forces)
+        # rotate forces by body link orientation
+        link_quat_w = asset.data.body_link_quat_w[env_ids][:, self.body_ids]
+        forces = math_utils.quat_apply_inverse(link_quat_w, forces)
 
-        # apply forces to asset
+        # apply forces to asset at body CoMs
+        com_pos_b = asset.data.body_com_pos_b[env_ids][:, self.body_ids]
         asset.set_external_force_and_torque(
             forces,
             torch.zeros_like(forces),
-            positions=com_pose_w[:, self.body_ids, :3],
+            positions=com_pos_b,
             body_ids=self.body_ids,
             env_ids=env_ids,
-            is_global=True,
+            is_global=False,
         )
