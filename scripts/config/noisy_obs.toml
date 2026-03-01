@@ -86,7 +86,7 @@ retreat_vel = 0.05
 [env.events.reset_robot_joints]
 mode = "reset"
 [env.events.reset_robot_joints.params]
-position_range = [-0.125, 0.125]
+position_range = [-0.05, 0.05]
 velocity_range = [-0.05, 0.05]
 
 [env.events.rand_gravity_force]
