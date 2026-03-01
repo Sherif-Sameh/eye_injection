@@ -40,8 +40,9 @@ class apply_external_gravity_force(ManagerTermBase):
             if asset_cfg.body_ids != slice(None)
             else torch.arange(asset.num_bodies)
         )
-        self.body_ids = self.body_ids.to(device=env.device)
         self.body_masses = asset.data.default_mass[:, self.body_ids, None]
+        self.body_ids = self.body_ids.to(device=env.device)
+        self.body_masses = self.body_masses.to(device=env.device)
 
         # initialize function for random sampling gravity's magnitude
         distribution: Literal["uniform", "log_uniform", "gaussian"] = cfg.params["distribution"]
