@@ -59,12 +59,12 @@ class EyeInjectionSceneBaseCfg(InteractiveSceneCfg):
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos={
-                "shoulder_pan_joint": 1.5707963267948966 / 2.25,
-                "shoulder_lift_joint": -1.5707963267948966 / 0.9,
-                "elbow_joint": 1.5707963267948966 / 1.25,
-                "wrist_1_joint": -1.5707963267948966 / 1.1,
-                "wrist_2_joint": -1.5707963267948966,
-                "wrist_3_joint": 0.0,
+                "shoulder_pan_joint": 0.6272,
+                "shoulder_lift_joint": -1.2816,
+                "elbow_joint": 1.2922,
+                "wrist_1_joint": -1.5829,
+                "wrist_2_joint": -1.5709,
+                "wrist_3_joint": 0.6273,
             },
             pos=(0.15, -0.7, 1.05),
         ),
