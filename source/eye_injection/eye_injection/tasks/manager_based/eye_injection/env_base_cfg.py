@@ -349,7 +349,7 @@ class EyeInjectionEnvBaseCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 2
-        self.episode_length_s = 20.0
+        self.episode_length_s = 15.0
         # viewer settings
         self.viewer.eye = (-1.0, 1.0, 4.0)
         self.viewer.lookat = (0.5, -0.5, 0.5)

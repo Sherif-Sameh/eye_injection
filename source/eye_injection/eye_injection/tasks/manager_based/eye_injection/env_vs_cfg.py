@@ -153,16 +153,3 @@ class EyeInjectionEnvVsCfg(EyeInjectionEnvEnclosedCfg):
     # MDP settings
     rewards: RewardsVsCfg = RewardsVsCfg()
     events: EventVsCfg = EventVsCfg()
-
-    # Post initialization
-    def __post_init__(self) -> None:
-        """Post initialization."""
-        # general settings
-        self.decimation = 2
-        self.episode_length_s = 40.0
-        # viewer settings
-        self.viewer.eye = (-1.0, 1.0, 4.0)
-        self.viewer.lookat = (0.5, -0.5, 0.5)
-        # simulation settings
-        self.sim.dt = 1 / 120
-        self.sim.render_interval = self.decimation
