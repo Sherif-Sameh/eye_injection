@@ -101,6 +101,9 @@ class TrajSmCommand(CommandTerm):
         self.tgt_ee_pose_wp = wp.from_torch(self.tgt_ee_pose, wp.transform)
         self.state_wait_time_wp = wp.from_torch(self.state_wait_time, wp.float32)
 
+        # metrics
+        self.metrics["pose_error"] = torch.zeros(self.num_envs, 7, device=self.device)
+
     def __str__(self) -> str:
         msg = "TrajSmCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
@@ -132,8 +135,13 @@ class TrajSmCommand(CommandTerm):
 
     def _update_metrics(self) -> None:
         """Update the metrics based on the current state."""
-        # no metrics to track currently
-        pass
+        # compute pose error between robot and command poses
+        ee_pose = utils.get_subtracted_pose(
+            self.robot.data.root_pose_w, self.robot.data.body_pose_w[:, self.body_idx]
+        )
+        self.metrics["pose_error"] = utils.get_error_pose(
+            ee_pose, self.des_ee_pose[:, [0, 1, 2, 6, 3, 4, 5]]
+        )
 
     def _resample_command(self, env_ids: Sequence[int] = None) -> None:
         """Resample the command for the specified environments."""
@@ -142,10 +150,13 @@ class TrajSmCommand(CommandTerm):
         # reset state machine
         self.sm_state[env_ids] = 0
         self.sm_wait_time[env_ids] = 0
+        self.time_left[env_ids] = torch.inf
         # update poses according to binary command
         bin_cmd = self.binary_command.bool()
         self.apr_ee_pose = torch.where(bin_cmd, self.apr_ee_poses[1], self.apr_ee_poses[0])
         self.tgt_ee_pose = torch.where(bin_cmd, self.tgt_ee_poses[1], self.tgt_ee_poses[0])
+        self.apr_ee_pose_wp = wp.from_torch(self.apr_ee_pose, wp.transform)
+        self.tgt_ee_pose_wp = wp.from_torch(self.tgt_ee_pose, wp.transform)
 
     def _update_command(self) -> None:
         """Update the command based on the current state."""
