@@ -154,7 +154,7 @@ class CommandsBaseCfg:
             "/World/envs/env_.*/Bed/Person/Person/Root/EyeLeft",
             "/World/envs/env_.*/Bed/Person/Person/Root/EyeRight",
         ),
-        source_prim_name="/World/envs/env_.*/Robot/base_link",
+        ref_prim_name="/World/envs/env_.*/Robot/base_link",
         binary_command_name="target_eye",
         motion_cfg=mdp.PoseCommandCfg.MotionCfg(
             pose_tol=(0.1, 0.1),

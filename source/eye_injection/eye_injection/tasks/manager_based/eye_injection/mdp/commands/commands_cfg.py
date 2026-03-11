@@ -37,8 +37,8 @@ class PoseCommandCfg(CommandTermCfg):
     target_prim_names: tuple[str, str] = MISSING
     """Names of the two target primitives for generating pose commands."""
 
-    source_prim_name: str = MISSING
-    """Name of the source primitive for generating pose commands."""
+    ref_prim_name: str = MISSING
+    """Name of the reference primitive for generating pose commands."""
 
     binary_command_name: str = MISSING
     """Name of the binary command generator for determining the target asset."""
@@ -109,8 +109,8 @@ class TagPoseCommandCfg(CommandTermCfg):
     tag_ids: list[int] = MISSING
     """Corresponding IDs to the target tag primitives of tag_prim_names."""
 
-    pose_source_prim_name: str = MISSING
-    """Name of the source primitive for which original pose commands are generated."""
+    pose_ref_prim_name: str = MISSING
+    """Name of the reference primitive for which original pose commands are generated."""
 
     pose_command_name: str = MISSING
     """Name of the pose command generator for determining the original target pose."""

@@ -50,7 +50,7 @@ class CommandsVsCfg(CommandsBaseCfg):
         camera_asset_name="camera",
         tag_prim_names=["/World/envs/env_.*/Bed/Marker_1", "/World/envs/env_.*/Bed/Marker_2"],
         tag_ids=[0, 1],
-        pose_source_prim_name="/World/envs/env_.*/Robot/base_link",
+        pose_ref_prim_name="/World/envs/env_.*/Robot/base_link",
         pose_command_name="target_pose",
         debug_vis=False,
     )
