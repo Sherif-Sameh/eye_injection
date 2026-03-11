@@ -121,6 +121,23 @@ def get_combined_pose(pose01: Tensor, pose12: Tensor) -> Tensor:
     return torch.cat([t02, q02], dim=-1)
 
 
+@torch.jit.script
+def get_subtracted_pose(pose01: Tensor, pose02: Tensor) -> Tensor:
+    """Get the pose generated from subtracting the two given poses.
+
+    Args:
+        pose01: Pose of frame 1 wrt frame 0. Shape is (..., 7).
+        pose02: Pose of frame 2 wrt frame 0. Shape is (..., 7).
+
+    Returns:
+        Subtracted pose of frame 2 wrt frame 1. Shape is (..., 7).
+    """
+    t01, q01 = pose01[..., :3], pose01[..., 3:]
+    t02, q02 = pose02[..., :3], pose02[..., 3:]
+    t12, q12 = math_utils.subtract_frame_transforms(t01, q01, t02, q02)
+    return torch.cat([t12, q12], dim=-1)
+
+
 def get_interpolated_pose(first: Tensor, second: Tensor, step: float) -> Tensor:
     """Get the interpolated pose between two poses according to given step size.
 
@@ -144,36 +161,6 @@ def get_interpolated_pose(first: Tensor, second: Tensor, step: float) -> Tensor:
     # interpolate quaternions
     qi = math_utils.quat_slerp(q1, q2, step)
     return torch.cat([ti, qi], dim=-1)
-
-
-@torch.jit.script
-def get_error_pose(source: Tensor, target: Tensor) -> Tensor:
-    """Get the pose error between a pose and a reference pose.
-
-    Large parts of this function are copied from the `compute_pose_error` function from
-    isaaclab.utils.math to remove parts of that function that prevent JiT compiling it.
-
-    **Note:** Both poses must share the same reference frame.
-
-    Args:
-        source: Pose of source frame for measuring pose error. Shape is (..., 7).
-        target: Pose of target frame for measuring pose error. Shape is (..., 7).
-
-    Returns:
-        Pose representing the error between the source and target poses in the common reference
-        frame. Shape is (..., 7).
-    """
-    t01, q01 = source[..., :3], source[..., 3:]
-    t02, q02 = target[..., :3], target[..., 3:]
-    # q_current_norm = q_current * q_current_conj
-    source_quat_norm = math_utils.quat_mul(q01, math_utils.quat_conjugate(q01))[:, 0]
-    # q_current_inv = q_current_conj / q_current_norm
-    source_quat_inv = math_utils.quat_conjugate(q01) / source_quat_norm.unsqueeze(-1)
-    # q_error = q_target * q_current_inv
-    quat_error = math_utils.quat_mul(q02, source_quat_inv)
-    # Compute position error
-    pos_error = t02 - t01
-    return torch.cat([pos_error, quat_error], dim=-1)
 
 
 @torch.jit.script
@@ -219,6 +206,29 @@ def apply_delta_pose(ref: Tensor, delta_pose: Tensor) -> Tensor:
     """
     td, qd = math_utils.apply_delta_pose(ref[..., :3], ref[..., 3:], delta_pose)
     return torch.cat([td, qd], dim=-1)
+
+
+@torch.jit.script
+def get_error_pose(source: Tensor, target: Tensor) -> Tensor:
+    """Get the pose error between a pose and a reference pose.
+
+    **Note:** Both poses must share the same reference frame.
+
+    Args:
+        source: Pose of source frame for measuring pose error. Shape is (..., 7).
+        target: Pose of target frame for measuring pose error. Shape is (..., 7).
+
+    Returns:
+        Pose representing the error between the source and target poses in the common reference
+        frame. Shape is (..., 7).
+    """
+    t01, q01 = source[..., :3], source[..., 3:]
+    t02, q02 = target[..., :3], target[..., 3:]
+    # q_error = q_target * q_current_inv
+    quat_error = math_utils.quat_mul(q02, math_utils.quat_inv(q01))
+    # Compute position error
+    pos_error = t02 - t01
+    return torch.cat([pos_error, quat_error], dim=-1)
 
 
 @torch.jit.script
