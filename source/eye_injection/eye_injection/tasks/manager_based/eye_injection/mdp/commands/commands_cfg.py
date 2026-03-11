@@ -14,6 +14,8 @@ class BinaryCommandCfg(CommandTermCfg):
 
     class_type: type = BinaryCommand
 
+    prob_1: float = MISSING
+
     def __post_init__(self):
         """Post initialization."""
         # resampling time range is irrelevant since no resampling takes place

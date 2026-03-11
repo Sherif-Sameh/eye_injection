@@ -144,7 +144,7 @@ class CommandsBaseCfg:
     """Command terms for the base MDP."""
 
     # Binary command corresponding to the targeted eye (0 = left, 1 = right)
-    target_eye = mdp.BinaryCommandCfg()
+    target_eye = mdp.BinaryCommandCfg(prob_1=0.5)
 
     # Trajectory SM command (not observable to agent)
     target_traj = mdp.TrajSmCommandCfg(

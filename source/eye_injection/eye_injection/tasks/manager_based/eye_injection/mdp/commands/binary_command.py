@@ -36,9 +36,8 @@ class BinaryCommand(CommandTerm):
         super().__init__(cfg, env)
 
         # create buffers to store the command
-        self._prob = torch.full((self.num_envs, 1), 0.5, device=self.device)
+        self._prob = torch.full((self.num_envs, 1), cfg.prob_1, device=self.device)
         self._command = torch.zeros(self.num_envs, 1, device=self.device)
-        # -- no metrics to track currently
 
     def __str__(self) -> str:
         msg = "BinaryCommand:\n"
@@ -79,6 +78,7 @@ class BinaryCommand(CommandTerm):
 
     def _resample_command(self, env_ids: Sequence[int]) -> None:
         """Resample the command for the specified environments."""
+        self.time_left[env_ids] = torch.inf
         self._command[env_ids] = torch.bernoulli(self._prob[env_ids])
 
     def _update_command(self):
