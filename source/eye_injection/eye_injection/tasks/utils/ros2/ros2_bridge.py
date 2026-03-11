@@ -13,7 +13,6 @@ from geometry_msgs.msg import PoseStamped
 from gymnasium.spaces import Dict
 from isaacsim.ros2.bridge import read_camera_info
 from rclpy.node import Node
-from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Empty
 from trajectory_msgs.msg import JointTrajectory
@@ -132,21 +131,19 @@ class IsaacLabRos2Bridge(Node):
         """
         # extract logged pose error metric from environment
         command_term: PoseCommand = env.command_manager.get_term("target_pose")
-        pos_error = command_term.metrics["position_error"][0].cpu()
-        rot_error = command_term.metrics["rotation_error"][0].cpu()
-        rot_error = R.from_rotvec(rot_error).as_quat()  # (x, y, z, w)
+        pose_error = command_term.metrics["pose_error"][0].cpu()
 
         # create and publish PoseStamped message
         msg = PoseStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = "base_link"
-        msg.pose.position.x = float(pos_error[0])
-        msg.pose.position.y = float(pos_error[1])
-        msg.pose.position.z = float(pos_error[2])
-        msg.pose.orientation.x = float(rot_error[0])
-        msg.pose.orientation.y = float(rot_error[1])
-        msg.pose.orientation.z = float(rot_error[2])
-        msg.pose.orientation.w = float(rot_error[3])
+        msg.pose.position.x = float(pose_error[0])
+        msg.pose.position.y = float(pose_error[1])
+        msg.pose.position.z = float(pose_error[2])
+        msg.pose.orientation.w = float(pose_error[3])
+        msg.pose.orientation.x = float(pose_error[4])
+        msg.pose.orientation.y = float(pose_error[5])
+        msg.pose.orientation.z = float(pose_error[6])
         self._pub_perr.publish(msg)
 
     def reset(self, env: ManagerBasedRLEnv) -> None:

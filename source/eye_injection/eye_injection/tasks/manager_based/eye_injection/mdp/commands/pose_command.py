@@ -8,21 +8,17 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Sequence
 
-import isaaclab.sim as sim_utils
 import torch
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.math import (
-    combine_frame_transforms,
-    compute_pose_error,
-    quat_apply,
-    quat_unique,
-)
+from isaaclab.utils.math import combine_frame_transforms, quat_apply
+
+import eye_injection.tasks.utils.isaac.common as utils
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
-    from torch import BoolTensor, Tensor
+    from torch import Tensor
 
     from .commands_cfg import PoseCommandCfg
 
@@ -60,12 +56,22 @@ class PoseCommand(CommandTerm):
         self.body_idx = self.robot.find_bodies(cfg.body_name)[0][0]
 
         # extract the target assets' relative poses and approach vectors (assumed to be fixed)
-        self.pose_target = self._get_relative_target_poses()
-        self.vec_approach = self._get_approach_vectors(*self.pose_target)
+        self.pose_target = [
+            utils.get_prim_relative_pose(
+                target, ref=cfg.ref_prim_name, make_quat_unique=cfg.make_quat_unique
+            ).to(device=self.device)
+            for target in cfg.target_prim_names
+        ]
+
+        # create approach vectors for target primitives
+        approach = torch.tensor([0, 0, 1.0], device=self.device).repeat(env.num_envs, 1)
+        self.vec_approach = [quat_apply(p[:, 3:], approach) for p in self.pose_target]
 
         # offset the target poses along the negative direction of the approach vectors
-        self.pose_target[0][:, :3] -= self.vec_approach[0] * self.cfg.motion_cfg.target_offset
-        self.pose_target[1][:, :3] -= self.vec_approach[1] * self.cfg.motion_cfg.target_offset
+        self.pose_target = [
+            utils.apply_delta_pos(p, -v * cfg.motion_cfg.target_offset)
+            for (p, v) in zip(self.pose_target, self.vec_approach)
+        ]
 
         # create buffers for storing the current pose target and approach vector
         self.pose_target_curr = torch.zeros_like(self.pose_target[0])
@@ -89,8 +95,7 @@ class PoseCommand(CommandTerm):
         self.pose_command_w = torch.zeros_like(self.pose_command_b)
 
         # -- metrics
-        self.metrics["position_error"] = torch.zeros(self.num_envs, 3, device=self.device)
-        self.metrics["rotation_error"] = torch.zeros(self.num_envs, 3, device=self.device)
+        self.metrics["pose_error"] = torch.zeros(self.num_envs, 7, device=self.device)
 
     def __str__(self) -> str:
         msg = "PoseCommand:\n"
@@ -119,10 +124,7 @@ class PoseCommand(CommandTerm):
     def _update_metrics(self) -> None:
         """Update the metrics based on the current state.
 
-        Computes the pose error between the current robot pose and the commanded pose. Pose errors
-        are measured and logged through two metrics. Position error are measured in Euclidean space
-        (in m) for all three axes. Orientation errors are measured in the tangent space of SO3
-        through the axis-angle 3D representation.
+        Computes the pose error between the current robot pose and the commanded pose.
         """
         # transform command from base frame to simulation world frame
         self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
@@ -131,12 +133,9 @@ class PoseCommand(CommandTerm):
             self.pose_command_b[:, :3],
             self.pose_command_b[:, 3:],
         )
-        # compute the error
-        self.metrics["position_error"], self.metrics["rotation_error"] = compute_pose_error(
-            self.pose_command_w[:, :3],
-            self.pose_command_w[:, 3:],
-            self.robot.data.body_pos_w[:, self.body_idx],
-            self.robot.data.body_quat_w[:, self.body_idx],
+        # compute the pose error
+        self.metrics["pose_error"] = utils.get_error_pose(
+            self.robot.data.body_pose_w[:, self.body_idx], self.pose_command_w
         )
 
     def _resample_command(self, env_ids: Sequence[int]) -> None:
@@ -168,7 +167,10 @@ class PoseCommand(CommandTerm):
     def _update_command(self) -> None:
         """Update the command based on the current state."""
         # 1) approach: transition to move linearly if approach pose has been reached
-        approach_done = torch.logical_and(self.state == 0, self._is_pose_reached())
+        approach_done = torch.logical_and(
+            self.state == 0,
+            utils.is_pose_converged(self.metrics["pose_error"], self.cfg.motion_cfg.pose_tol),
+        )
         self.state[approach_done] = 1
         self.command_counter[approach_done] = 0
 
@@ -261,89 +263,3 @@ class PoseCommand(CommandTerm):
         # -- current body pose
         body_link_pose_w = self.robot.data.body_link_pose_w[:, self.body_idx]
         self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:])
-
-    """
-    Private helper functions.
-    """
-
-    def _get_relative_target_poses(self) -> tuple[Tensor, Tensor]:
-        """Get the relative poses of the target assets with respect to the body asset.
-
-        Returns:
-            A tuple containing the poses of the two target assets with respect to the base asset.
-        """
-        # extract the target and reference prims
-        target_prims = (
-            sim_utils.find_matching_prims(self.cfg.target_prim_names[0]),
-            sim_utils.find_matching_prims(self.cfg.target_prim_names[1]),
-        )
-        ref_prims = sim_utils.find_matching_prims(self.cfg.source_prim_name)
-        assert len(target_prims[0]) == len(target_prims[1]), (
-            f"Target prims must have matching lengths, got {len(target_prims[0])} and {len(target_prims[1])}."
-        )
-        assert len(target_prims[0]) == len(ref_prims), (
-            f"Target and reference prims must have matching lengths, got {len(target_prims[0])} and {len(ref_prims)}."
-        )
-
-        # extract the relative poses of the target prims
-        pos_1, quat_1, pos_2, quat_2 = [], [], [], []
-        for t_prim_1, t_prim_2, r_prim in zip(target_prims[0], target_prims[1], ref_prims):
-            # first target
-            pos, quat = sim_utils.resolve_prim_pose(t_prim_1, ref_prim=r_prim)
-            pos_1.append(torch.tensor(pos))
-            quat_1.append(torch.tensor(quat))
-
-            # second target
-            pos, quat = sim_utils.resolve_prim_pose(t_prim_2, ref_prim=r_prim)
-            pos_2.append(torch.tensor(pos))
-            quat_2.append(torch.tensor(quat))
-
-        # stack poses across the env dim and move to device
-        pos_1 = torch.stack(pos_1, dim=0).to(device=self.device)
-        quat_1 = torch.stack(quat_1, dim=0).to(device=self.device)
-        pos_2 = torch.stack(pos_2, dim=0).to(device=self.device)
-        quat_2 = torch.stack(quat_2, dim=0).to(device=self.device)
-
-        # make quaternions unique (+ve real part) if required
-        if self.cfg.make_quat_unique:
-            quat_1 = quat_unique(quat_1)
-            quat_2 = quat_unique(quat_2)
-
-        pose_1 = torch.cat([pos_1, quat_1], dim=-1)
-        pose_2 = torch.cat([pos_2, quat_2], dim=-1)
-        return pose_1, pose_2
-
-    def _get_approach_vectors(self, pose_1: Tensor, pose_2: Tensor) -> tuple[Tensor, Tensor]:
-        """Get the approach trajectories according to the target poses and motion configuration.
-
-        Args:
-            pose_1: The first target pose. Shape is (N, 7).
-            pose_2: The second target pose. Shape is (N, 7).
-
-        Returns:
-            A tuple containing the approach trajectories of the two target assets with respect to
-                the base asset. Shape of each entry is (N, M, 3).
-        """
-        # create the approach vector along the Z-axis of the target frame
-        approach = torch.zeros(self.num_envs, 3, device=self.device)
-        approach[:, 2] = 1
-
-        # rotate the approach vector by the current orientations
-        approach_1 = quat_apply(pose_1[:, 3:], approach)
-        approach_2 = quat_apply(pose_2[:, 3:], approach)
-        return approach_1, approach_2
-
-    def _is_pose_reached(self) -> BoolTensor:
-        """Compute whether the target pose has been reached according to set tolerances.
-
-        Returns:
-            Boolean tensor containing the success status of each entry according to its errors and
-                the set tolerances. Shape is (N,).
-        """
-        pos_error = torch.norm(self.metrics["position_error"], dim=-1)
-        rot_error = torch.norm(self.metrics["rotation_error"], dim=-1)
-        reached = torch.logical_and(
-            pos_error <= self.cfg.motion_cfg.pose_tol[0],
-            rot_error <= self.cfg.motion_cfg.pose_tol[1],
-        )
-        return reached

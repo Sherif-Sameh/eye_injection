@@ -7,18 +7,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Sequence
 
-import isaaclab.sim as sim_utils
 import torch
 from isaaclab.managers import CommandTerm
-from isaaclab.utils.math import (
-    combine_frame_transforms,
-    convert_camera_frame_orientation_convention,
-    quat_from_euler_xyz,
-)
+from isaaclab.utils.math import combine_frame_transforms
+
+import eye_injection.tasks.utils.isaac.common as utils
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.sensors import Camera
     from torch import Tensor
 
     from .commands_cfg import TagPoseCommandCfg
@@ -65,11 +61,21 @@ class TagPoseCommand(CommandTerm):
 
         # extract the relative pose of the camera asset relative to the end-effector
         # (assumed to be fixed)
-        self.pose_cam_ee = self._get_relative_camera_pose(env)
-        self.pose_cam_ee = torch.tile(self.pose_cam_ee, (self.n_tags, 1))  # (nT * N, 7)
+        self.pose_cam_ee = utils.get_camera_relative_pose(env.scene[self.cfg.camera_asset_name])
+        self.pose_cam_ee = self.pose_cam_ee.repeat(self.n_tags * env.num_envs, 1).to(
+            device=self.device
+        )
 
         # extract the base's relative poses to the tag assets (assumed to be fixed)
-        self.pose_base_tag = self._get_relative_tag_poses()
+        self.pose_base_tag = [
+            utils.get_prim_relative_pose(cfg.pose_ref_prim_name, ref=tag_prim)
+            for tag_prim in cfg.tag_prim_names
+        ]
+        rot_offset = torch.tensor([torch.pi, 0, 0]).repeat(env.num_envs, 1)
+        self.pose_base_tag = [
+            utils.get_combined_pose(utils.apply_delta_rot(utils.get_eye_like(p), rot_offset), p)
+            for p in self.pose_base_tag
+        ]
         self.pose_base_tag = torch.cat(self.pose_base_tag, dim=0)  # (nT * N, 7)
 
         # create buffers to store the command
@@ -144,79 +150,6 @@ class TagPoseCommand(CommandTerm):
             .transpose(0, 1)
             .reshape(self.num_envs, self.n_tags * 7)
         )
-
-    """
-    Private helper functions.
-    """
-
-    def _get_relative_camera_pose(self, env: ManagerBasedRLEnv) -> Tensor:
-        """Get the relative pose of the camera asset with respect to the end-effector asset.
-
-        Args:
-            env: The environment object.
-
-        Returns:
-            The relative pose of the camera. Shape is (N, 7).
-        """
-        # Retrieve the camera sensor and offset configuration from environment
-        asset: Camera = env.scene[self.cfg.camera_asset_name]
-        offset = asset.cfg.offset
-
-        # Get camera position and orientation in ROS convention (forward axis +Z)
-        pos = torch.tensor(offset.pos)
-        rot = torch.tensor(offset.rot)
-        if offset.convention != "ros":
-            rot = convert_camera_frame_orientation_convention(
-                rot, origin=offset.convention, target="ros"
-            )
-
-        # Repeat camera pose num_envs times
-        pose = torch.tile(torch.cat([pos, rot], dim=0), (env.num_envs, 1))
-        pose = pose.to(device=self.device)
-        return pose
-
-    def _get_relative_tag_poses(self) -> list[Tensor]:
-        """Get the base asset's relative poses with respect to the tag assets.
-
-        Returns:
-            A list containing the poses of the base asset with respect to the tag assets. Length
-                equal to the number of tag assets. Shape of each entry is (N, 7).
-        """
-        # pose offset to correctly align tag frame with the AprilTag standard
-        # Isaac frame (x up, y left, z out), AprilTag frame (x right, y down, z in)
-        pos_offset = torch.zeros(self.num_envs, 3, device=self.device)
-        rot_offset = quat_from_euler_xyz(
-            torch.full((self.num_envs,), torch.pi),
-            torch.zeros(self.num_envs),
-            torch.zeros(self.num_envs),
-        ).to(device=self.device)
-
-        # extract the target (base) prims
-        target_prims = sim_utils.find_matching_prims(self.cfg.pose_source_prim_name)
-
-        # extract relative poses for each tag prim
-        poses = []
-        for tag_prim_name in self.cfg.tag_prim_names:
-            # extract the tag prims
-            ref_prims = sim_utils.find_matching_prims(tag_prim_name)
-            assert len(target_prims) == len(ref_prims), (
-                f"Target and reference prims must have matching lengths, got {len(target_prims)}"
-                f" and {len(ref_prims)}."
-            )
-
-            # extract the individual relative poses across environment instances
-            pos, quat = [], []
-            for t_prim, r_prim in zip(target_prims, ref_prims):
-                pos_i, quat_i = sim_utils.resolve_prim_pose(t_prim, ref_prim=r_prim)
-                pos.append(torch.tensor(pos_i))
-                quat.append(torch.tensor(quat_i))
-            pos = torch.stack(pos, dim=0).to(device=self.device)
-            quat = torch.stack(quat, dim=0).to(device=self.device)
-
-            # apply pose offset to correctly align tag frame
-            pos, quat = combine_frame_transforms(pos_offset, rot_offset, pos, quat)
-            poses.append(torch.cat([pos, quat], dim=-1))
-        return poses
 
 
 @torch.jit.script
