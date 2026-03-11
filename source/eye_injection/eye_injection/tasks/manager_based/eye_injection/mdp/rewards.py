@@ -19,17 +19,17 @@ if TYPE_CHECKING:
 class command_error_staged(ManagerTermBase):
     """Compute weighted command error based on the current stage.
 
-    The function computes the command error between the published pose command and the current pose
+    The function computes the command error between the published state command and the current pose
     using a specified error function. The error is then weighted based on the current stage of the
-    command. Stages refer to the discrete phases of the command motion execution (see PoseCommand
-    docs for details).
+    command. Stages refer to the discrete phases of the command motion execution (see
+    `TrajSmCommand` for details).
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         # initialize the base class
         super().__init__(cfg, env)
         assert "ft_asset_name" in cfg.params, "FrameTransformer asset name must be specified."
-        assert "command_name" in cfg.params, "PoseCommand name must be specified."
+        assert "command_name" in cfg.params, "TrajSmCommand name must be specified."
         assert "stage_weights" in cfg.params, "Stage weights must be specified."
         assert "error_fn" in cfg.params, "Error function must be specified."
 
@@ -50,7 +50,7 @@ class command_error_staged(ManagerTermBase):
         Args:
             env: The current active environment.
             ft_asset_name: FrameTransformer asset name for retreiving the current pose.
-            command_name: PoseCommand name for retreiving the latest command.
+            command_name: TrajSmCommand name for retreiving the latest command.
             stage_weights: Weights for each command stage. Shape is (S,).
             error_fn: Function for computing the command error between the desired and current
                 poses given the command and frame transformer asset.

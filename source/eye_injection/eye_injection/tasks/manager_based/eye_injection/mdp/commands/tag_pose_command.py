@@ -108,7 +108,7 @@ class TagPoseCommand(CommandTerm):
     @property
     def target_pose_command(self) -> Tensor:
         """The latest generated pose command. Shape is (num_envs, 7)."""
-        return self._env.command_manager.get_command(self.cfg.pose_command_name)[:, 1:]
+        return self._env.command_manager.get_command(self.cfg.pose_command_name)[:, 1:8]
 
     """
     Implementation specific functions.

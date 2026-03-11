@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from sensor_msgs.msg import CameraInfo
     from torch import Tensor
 
-    from eye_injection.tasks.manager_based.eye_injection.mdp import PoseCommand
+    from eye_injection.tasks.manager_based.eye_injection.mdp import TrajSmCommand
 
 
 class IsaacLabRos2Bridge(Node):
@@ -130,7 +130,7 @@ class IsaacLabRos2Bridge(Node):
             env: ManagerBasedRLEnv to interface with ROS 2 using the bridge node.
         """
         # extract logged pose error metric from environment
-        command_term: PoseCommand = env.command_manager.get_term("target_pose")
+        command_term: TrajSmCommand = env.command_manager.get_term("target_traj")
         pose_error = command_term.metrics["pose_error"][0].cpu()
 
         # create and publish PoseStamped message

@@ -146,8 +146,8 @@ class CommandsBaseCfg:
     # Binary command corresponding to the targeted eye (0 = left, 1 = right)
     target_eye = mdp.BinaryCommandCfg()
 
-    # Pose command for target pose (not observable to agent)
-    target_pose = mdp.PoseCommandCfg(
+    # Trajectory SM command (not observable to agent)
+    target_traj = mdp.TrajSmCommandCfg(
         asset_name="robot",
         body_name="wrist_3_link",
         target_prim_names=(
@@ -156,15 +156,14 @@ class CommandsBaseCfg:
         ),
         ref_prim_name="/World/envs/env_.*/Robot/base_link",
         binary_command_name="target_eye",
-        motion_cfg=mdp.PoseCommandCfg.MotionCfg(
+        motion_cfg=mdp.TrajSmCommandCfg.MotionCfg(
             pose_tol=(0.1, 0.1),
             target_offset=0.1,
             approach_offset=0.3,
             approach_vel=0.05,
             stationary_time=4.0,
-            retreat_vel=0.1,
+            retreat_vel=0.05,
         ),
-        debug_vis=False,
     )
 
 
@@ -277,7 +276,7 @@ class RewardsBaseCfg:
         weight=-0.5,
         params={
             "ft_asset_name": "frame_ee",
-            "command_name": "target_pose",
+            "command_name": "target_traj",
             "stage_weights": [0.1, 0.3, 0.8, 0.3, 0.1],
             "error_fn": mdp.position_command_error,
             "error_fn_kwargs": {},
@@ -289,7 +288,7 @@ class RewardsBaseCfg:
         weight=-0.5,
         params={
             "ft_asset_name": "frame_ee",
-            "command_name": "target_pose",
+            "command_name": "target_traj",
             "stage_weights": [0.1, 0.3, 0.8, 0.3, 0.1],
             "error_fn": mdp.orientation_command_error,
             "error_fn_kwargs": {},

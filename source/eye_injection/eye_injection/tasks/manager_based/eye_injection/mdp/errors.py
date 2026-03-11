@@ -23,7 +23,7 @@ def position_command_error(command: Tensor, asset: FrameTransformer) -> Tensor:
     difference between the desired and current positions.
 
     Args:
-        command: Tensor containing the latest generated PoseCommand. Shape is (N, 8).
+        command: Tensor containing the latest generated state command. Shape is (N, 14).
         asset: FrameTransformer asset for retreiving the current pose with respect to the source
             frame. The frame transformer is expected to have the same source frame as the command
             generator.
@@ -46,7 +46,7 @@ def position_command_error_tanh(
     current position of the asset's body and maps it to [0, 1] with a tanh kernel.
 
     Args:
-        command: Tensor containing the latest generated PoseCommand. Shape is (N, 8).
+        command: Tensor containing the latest generated state command. Shape is (N, 14).
         asset: FrameTransformer asset for retreiving the current pose with respect to the source
             frame. The frame transformer is expected to have the same source frame as the command
             generator.
@@ -70,7 +70,7 @@ def orientation_command_error(command: Tensor, asset: FrameTransformer) -> Tenso
     path between the desired and current orientations (geodesic distance).
 
     Args:
-        command: Tensor containing the latest generated PoseCommand. Shape is (N, 8).
+        command: Tensor containing the latest generated state command. Shape is (N, 14).
         asset: FrameTransformer asset for retreiving the current pose with respect to the source
             frame. The frame transformer is expected to have the same source frame as the command
             generator.
@@ -80,6 +80,6 @@ def orientation_command_error(command: Tensor, asset: FrameTransformer) -> Tenso
             orientations. Shape is (N,).
     """
     # obtain the desired and current orientations
-    des_quat = command[:, 4:]
+    des_quat = command[:, 4:8]
     curr_quat = asset.data.target_quat_source[:, 0]
     return quat_error_magnitude(curr_quat, des_quat)
