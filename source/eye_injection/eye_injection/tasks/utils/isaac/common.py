@@ -10,6 +10,8 @@ if TYPE_CHECKING:
     from isaaclab.sensors import Camera
     from torch import BoolTensor, Tensor
 
+# region Pose-Prim
+
 
 def get_prim_relative_pose(
     target: str, ref: str | None = None, make_quat_unique: bool = False
@@ -71,6 +73,9 @@ def get_camera_relative_pose(
     return torch.cat([pos, rot], dim=-1)
 
 
+# region Pose-Only
+
+
 @torch.jit.script
 def get_eye_like(ref: Tensor) -> Tensor:
     """Get identity pose with the same shape as reference pose."""
@@ -79,29 +84,38 @@ def get_eye_like(ref: Tensor) -> Tensor:
 
 
 @torch.jit.script
-def get_offset_pose(ref: Tensor, mag: float, dir: tuple[float, float, float]) -> Tensor:
-    """Get an offset pose from reference along a certain direction by some magnitude.
+def get_inverse_pose(pose01: Tensor) -> Tensor:
+    """Get inverse pose of the reference given pose.
 
     Args:
-        ref: Reference pose for generating offset pose. Shape is (..., 7).
-        mag: Magnitude of the offset in meters. Must be > 0.
-        dir: Direction vector (x, y, z) for offset pose. Defined in the frame of the reference
-            pose.
+        pose01: Pose of frame 1 wrt frame 0. Shape is (..., 7).
 
     Returns:
-        Offset pose from reference along the given direction by the given magnitude.
-        Shape is (..., 7).
+        Pose of frame 0 wrt frame 1. Shape is (..., 7).
     """
-    assert mag > 0, f"Offset magnitude must be > 0, got {mag}."
-    # Create dir vector
-    dir = torch.tensor(dir, device=ref.device)
-    dir /= torch.linalg.vector_norm(dir) + 1e-8
-    dir = dir.expand(ref.shape[:-1] + (-1,))
-    # Rotate and apply offset vector
-    dir = math_utils.quat_apply(ref[..., 3:], dir)
-    pose = torch.clone(ref)
-    pose[..., :3] += dir * mag
-    return pose
+    t01, q01 = pose01[..., :3], pose01[..., 3:]
+    q10 = math_utils.quat_inv(q01)
+    t10 = math_utils.quat_apply(q10, -t01)
+    return torch.cat([t10, q10], dim=-1)
+
+
+@torch.jit.script
+def is_pose_converged(error: Tensor, tol: tuple[float, float]) -> BoolTensor:
+    """Evaluate whether a pose error has converged according to given tolerances.
+
+    Args:
+        error: Pose error between source and target poses. Shape is (..., 7).
+        tol: Tolerances for position and rotation errors in meters and radians respectively.
+
+    Return:
+        Boolean tensor containing the convergence status of each pose. Shape is (...).
+    """
+    pos_error = torch.linalg.vector_norm(error[..., :3], dim=-1)
+    rot_error = torch.linalg.vector_norm(math_utils.axis_angle_from_quat(error[..., 3:]), dim=-1)
+    return torch.logical_and(pos_error < tol[0], rot_error < tol[1])
+
+
+# region Pose-Pose
 
 
 @torch.jit.script
@@ -164,6 +178,58 @@ def get_interpolated_pose(first: Tensor, second: Tensor, step: float) -> Tensor:
 
 
 @torch.jit.script
+def get_error_pose(source: Tensor, target: Tensor) -> Tensor:
+    """Get the pose error between a pose and a reference pose.
+
+    **Note:** Both poses must share the same reference frame.
+
+    Args:
+        source: Pose of source frame for measuring pose error. Shape is (..., 7).
+        target: Pose of target frame for measuring pose error. Shape is (..., 7).
+
+    Returns:
+        Pose representing the error between the source and target poses in the common reference
+        frame. Shape is (..., 7).
+    """
+    t01, q01 = source[..., :3], source[..., 3:]
+    t02, q02 = target[..., :3], target[..., 3:]
+    # q_error = q_target * q_current_inv
+    quat_error = math_utils.quat_mul(q02, math_utils.quat_inv(q01))
+    # Compute position error
+    pos_error = t02 - t01
+    return torch.cat([pos_error, quat_error], dim=-1)
+
+
+# region Pose-Delta
+
+
+@torch.jit.script
+def apply_delta_offset(ref: Tensor, mag: float, dir: tuple[float, float, float]) -> Tensor:
+    """Apply an offset along a certain direction by some magnitude to given reference pose.
+
+    Args:
+        ref: Reference pose for generating offset pose. Shape is (..., 7).
+        mag: Magnitude of the offset in meters. Must be > 0.
+        dir: Direction vector (x, y, z) for offset pose. Defined in the frame of the reference
+            pose.
+
+    Returns:
+        Offset pose from reference along the given direction by the given magnitude.
+        Shape is (..., 7).
+    """
+    assert mag > 0, f"Offset magnitude must be > 0, got {mag}."
+    # Create dir vector
+    dir = torch.tensor(dir, device=ref.device)
+    dir /= torch.linalg.vector_norm(dir) + 1e-8
+    dir = dir.expand(ref.shape[:-1] + (-1,))
+    # Rotate and apply offset vector
+    dir = math_utils.quat_apply(ref[..., 3:], dir)
+    pose = torch.clone(ref)
+    pose[..., :3] += dir * mag
+    return pose
+
+
+@torch.jit.script
 def apply_delta_pos(ref: Tensor, delta_pos: Tensor) -> Tensor:
     """Apply a delta position to a given reference pose.
 
@@ -208,40 +274,37 @@ def apply_delta_pose(ref: Tensor, delta_pose: Tensor) -> Tensor:
     return torch.cat([td, qd], dim=-1)
 
 
-@torch.jit.script
-def get_error_pose(source: Tensor, target: Tensor) -> Tensor:
-    """Get the pose error between a pose and a reference pose.
+# region Pose-Transform
 
-    **Note:** Both poses must share the same reference frame.
+
+@torch.jit.script
+def transform_points(pose01: Tensor, p1: Tensor) -> Tensor:
+    """Transform points using given pose.
 
     Args:
-        source: Pose of source frame for measuring pose error. Shape is (..., 7).
-        target: Pose of target frame for measuring pose error. Shape is (..., 7).
+        pose01: Pose of frame 1 wrt frame 0. Shape is (..., 7).
+        p1: Points expressed in frame 1. Shape is (..., 3).
 
     Returns:
-        Pose representing the error between the source and target poses in the common reference
-        frame. Shape is (..., 7).
+        Transformed points expressed in frame 0. Shape is (..., 3).
     """
-    t01, q01 = source[..., :3], source[..., 3:]
-    t02, q02 = target[..., :3], target[..., 3:]
-    # q_error = q_target * q_current_inv
-    quat_error = math_utils.quat_mul(q02, math_utils.quat_inv(q01))
-    # Compute position error
-    pos_error = t02 - t01
-    return torch.cat([pos_error, quat_error], dim=-1)
+    t01, q01 = pose01[..., :3], pose01[..., 3:]
+    return math_utils.quat_apply(q01, p1) + t01
 
 
 @torch.jit.script
-def is_pose_converged(error: Tensor, tol: tuple[float, float]) -> BoolTensor:
-    """Evaluate whether a pose error has converged according to given tolerances.
+def transform_twist(pose01: Tensor, t0: Tensor) -> Tensor:
+    """Transform twist using given pose.
 
     Args:
-        error: Pose error between source and target poses. Shape is (..., 7).
-        tol: Tolerances for position and rotation errors in meters and radians respectively.
+        pose01: Pose of frame 1 wrt frame 0. Shape is (..., 7).
+        t0: Twist expressed in frame 0. Shape is (..., 6).
 
-    Return:
-        Boolean tensor containing the convergence status of each pose. Shape is (...).
+    Returns:
+        Transformed twist expressed in frame 1. Shape is (..., 6).
     """
-    pos_error = torch.linalg.vector_norm(error[..., :3], dim=-1)
-    rot_error = torch.linalg.vector_norm(math_utils.axis_angle_from_quat(error[..., 3:]), dim=-1)
-    return torch.logical_and(pos_error < tol[0], rot_error < tol[1])
+    t01, q01 = pose01[..., :3], pose01[..., 3:]
+    v0, w0 = t0[..., :3], t0[..., 3:]
+    v1 = math_utils.quat_apply_inverse(q01, v0 + torch.cross(w0, t01, dim=-1))
+    w1 = math_utils.quat_apply_inverse(q01, w0)
+    return torch.cat([v1, w1], dim=-1)

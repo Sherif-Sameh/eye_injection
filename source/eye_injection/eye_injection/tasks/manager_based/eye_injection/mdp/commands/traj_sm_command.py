@@ -65,10 +65,11 @@ class TrajSmCommand(CommandTerm):
             for tgt in cfg.target_prim_names
         ]
         self.apr_ee_poses = [
-            utils.get_offset_pose(p, mtn_cfg.approach_offset, (0.0, 0.0, -1.0)) for p in prim_poses
+            utils.apply_delta_offset(p, mtn_cfg.approach_offset, (0.0, 0.0, -1.0))
+            for p in prim_poses
         ]
         self.tgt_ee_poses = [
-            utils.get_offset_pose(p, mtn_cfg.target_offset, (0.0, 0.0, -1.0)) for p in prim_poses
+            utils.apply_delta_offset(p, mtn_cfg.target_offset, (0.0, 0.0, -1.0)) for p in prim_poses
         ]
         # convert all poses from (w, x, y, z) to (x, y, z, w) for compatibility with warp
         self.apr_ee_poses = [p[:, [0, 1, 2, 4, 5, 6, 3]] for p in self.apr_ee_poses]
