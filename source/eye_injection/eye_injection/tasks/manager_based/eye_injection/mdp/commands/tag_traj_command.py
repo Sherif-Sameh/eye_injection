@@ -64,10 +64,11 @@ class TagTrajCommand(CommandTerm):
 
         # extract the pose of the base relative to the tag assets (assumed to be fixed)
         t_prims, r_prim = cfg.tag_prim_names, cfg.pose_ref_prim_name
-        base_tag_pose = [utils.get_prim_relative_pose(t_prim, ref=r_prim) for t_prim in t_prims]
-        rot_offset = torch.tensor([-torch.pi, 0.0, 0.0]).repeat((env.num_envs, 1))
+        tag_base_pose = [utils.get_prim_relative_pose(r_prim, ref=t_prim) for t_prim in t_prims]
+        rot_offset = torch.tensor([torch.pi, 0.0, 0.0]).repeat((env.num_envs, 1))
         self.tag_base_pose = [
-            utils.get_inverse_pose(utils.apply_delta_rot(p, rot_offset)) for p in base_tag_pose
+            utils.get_combined_pose(utils.apply_delta_rot(utils.get_eye_like(p), rot_offset), p)
+            for p in tag_base_pose
         ]
         self.tag_base_pose = torch.cat(self.tag_base_pose, dim=0)  # (nT * N, 7)
 
