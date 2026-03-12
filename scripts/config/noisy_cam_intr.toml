@@ -65,12 +65,13 @@ noise_class = "ConstantNoiseCfg"
 
 
 # Commands configuration
-[env.commands.target_pose]
-debug_vis = false
-[env.commands.target_pose.motion_cfg]
+[env.commands.target_eye]
+prob_1 = 0.0  # fixed to left-eye
+
+[env.commands.target_traj.motion_cfg]
 pose_tol = [0.05, 0.1]
-target_offset = 0.25
-approach_offset = 0.4
+target_offset = 0.125
+approach_offset = 0.5   
 approach_vel = 0.05
 stationary_time = 4.0
 retreat_vel = 0.05
