@@ -18,6 +18,8 @@ import eye_injection.tasks.utils.isaac.common as utils
 # initialize warp
 wp.init()
 
+# region Command
+
 
 class TrajSmCommand(CommandTerm):
     """Trajectory FSM-based state command term generator.
@@ -185,6 +187,8 @@ class TrajSmCommand(CommandTerm):
             device=self.device,
         )
 
+
+# region Warp SM
 
 """
 Warp SM implementation
