@@ -119,7 +119,7 @@ class IsaacLabTFBroadcaster(Node):
             tag_id = int(cmd[i * 8])
             t = TransformStamped()
             t.header.stamp = stamp
-            t.header.frame_id = f"tag36h11:{tag_id}"
+            t.header.frame_id = f"tag36h11:{tag_id}f"
             t.child_frame_id = f"camera_color_optical_frame:{tag_id}"
 
             t.transform.translation.x = float(cmd[i * 8 + 1])
