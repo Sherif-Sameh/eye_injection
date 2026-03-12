@@ -148,8 +148,6 @@ class TrajSmCommand(CommandTerm):
 
     def _resample_command(self, env_ids: Sequence[int] = None) -> None:
         """Resample the command for the specified environments."""
-        if env_ids is None:
-            env_ids = slice(None)
         # reset state machine
         self.sm_state[env_ids] = 0
         self.sm_wait_time[env_ids] = 0
@@ -158,8 +156,12 @@ class TrajSmCommand(CommandTerm):
         bin_cmd = self.binary_command.bool()
         self.apr_ee_pose = torch.where(bin_cmd, self.apr_ee_poses[1], self.apr_ee_poses[0])
         self.tgt_ee_pose = torch.where(bin_cmd, self.tgt_ee_poses[1], self.tgt_ee_poses[0])
+        self.des_ee_pose = torch.clone(self.apr_ee_pose)
         self.apr_ee_pose_wp = wp.from_torch(self.apr_ee_pose, wp.transform)
         self.tgt_ee_pose_wp = wp.from_torch(self.tgt_ee_pose, wp.transform)
+        self.des_ee_pose_wp = wp.from_torch(self.des_ee_pose, wp.transform)
+        # reset metrics to ensure quaternions are always valid
+        self.metrics["pose_error"][:, 3] = 1.0
 
     def _update_command(self) -> None:
         """Update the command based on the current state."""
