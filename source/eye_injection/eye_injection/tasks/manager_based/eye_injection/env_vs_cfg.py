@@ -45,13 +45,13 @@ class EyeInjectionSceneVsCfg(EyeInjectionSceneEnclosedCfg):
 class CommandsVsCfg(CommandsBaseCfg):
     """Extended command terms for visual servoing MDP."""
 
-    # Tag pose command for retargeting pose commands to AprilTags
-    tag_pose = mdp.TagPoseCommandCfg(
+    # Tag trajectory command for retargeting state commands to AprilTags
+    tag_traj = mdp.TagTrajCommandCfg(
         camera_asset_name="camera",
         tag_prim_names=["/World/envs/env_.*/Bed/Marker_1", "/World/envs/env_.*/Bed/Marker_2"],
         tag_ids=[0, 1],
         pose_ref_prim_name="/World/envs/env_.*/Robot/base_link",
-        pose_command_name="target_traj",
+        traj_command_name="target_traj",
         debug_vis=False,
     )
 
@@ -85,7 +85,7 @@ class ObservationsVsCfg(ObservationsImageCfg):
         """Modified observations for policy commands group."""
 
         # observation terms (order preserved)
-        tag_pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "tag_pose"})
+        tag_traj_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "tag_traj"})
 
         def __post_init__(self) -> None:
             self.enable_corruption = False

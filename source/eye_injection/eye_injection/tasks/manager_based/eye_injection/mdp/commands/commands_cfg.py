@@ -4,7 +4,7 @@ from isaaclab.managers import CommandTermCfg
 from isaaclab.utils import configclass
 
 from .binary_command import BinaryCommand
-from .tag_pose_command import TagPoseCommand
+from .tag_traj_command import TagTrajCommand
 from .traj_sm_command import TrajSmCommand
 
 
@@ -18,34 +18,7 @@ class BinaryCommandCfg(CommandTermCfg):
 
     def __post_init__(self):
         """Post initialization."""
-        # resampling time range is irrelevant since no resampling takes place
-        self.resampling_time_range = (1.0, 1.0)
-
-
-@configclass
-class TagPoseCommandCfg(CommandTermCfg):
-    """Configuration for the tag pose command generator."""
-
-    class_type: type = TagPoseCommand
-
-    camera_asset_name: str = MISSING
-    """Name of the source primitive for generating pose commands."""
-
-    tag_prim_names: list[str] = MISSING
-    """Names of the target tag primitives for generating pose commands."""
-
-    tag_ids: list[int] = MISSING
-    """Corresponding IDs to the target tag primitives of tag_prim_names."""
-
-    pose_ref_prim_name: str = MISSING
-    """Name of the reference primitive for which original pose commands are generated."""
-
-    pose_command_name: str = MISSING
-    """Name of the pose command generator for determining the original target pose."""
-
-    def __post_init__(self):
-        """Post initialization."""
-        # resampling time range is irrelevant since no resampling takes place
+        # resampling time range is irrelevant since its disabled internally by the command
         self.resampling_time_range = (1.0, 1.0)
 
 
@@ -94,6 +67,33 @@ class TrajSmCommandCfg(CommandTermCfg):
 
     motion_cfg: MotionCfg = MISSING
     """Motion configuration."""
+
+    def __post_init__(self):
+        """Post initialization."""
+        # resampling time range is irrelevant since since its disabled internally by the command
+        self.resampling_time_range = (1.0, 1.0)
+
+
+@configclass
+class TagTrajCommandCfg(CommandTermCfg):
+    """Configuration for the tag trajectory command generator."""
+
+    class_type: type = TagTrajCommand
+
+    camera_asset_name: str = MISSING
+    """Name of the source camera asset for generating state commands."""
+
+    tag_prim_names: list[str] = MISSING
+    """Names of the reference tag primitives for generating state commands."""
+
+    tag_ids: list[int] = MISSING
+    """Corresponding IDs to the reference tag primitives of tag_prim_names."""
+
+    pose_ref_prim_name: str = MISSING
+    """Name of the reference primitive for which original state commands are generated."""
+
+    traj_command_name: str = MISSING
+    """Name of the trajectory command generator for determining the original target state."""
 
     def __post_init__(self):
         """Post initialization."""

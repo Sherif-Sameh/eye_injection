@@ -10,8 +10,8 @@ from isaaclab.envs.mdp import *  # noqa: F401, F403
 from .commands import (
     BinaryCommand,
     BinaryCommandCfg,
-    TagPoseCommand,
-    TagPoseCommandCfg,
+    TagTrajCommand,
+    TagTrajCommandCfg,
     TrajSmCommand,
     TrajSmCommandCfg,
 )
@@ -22,8 +22,8 @@ from .rewards import command_error_staged
 __all__ = [
     "BinaryCommand",
     "BinaryCommandCfg",
-    "TagPoseCommand",
-    "TagPoseCommandCfg",
+    "TagTrajCommand",
+    "TagTrajCommandCfg",
     "TrajSmCommand",
     "TrajSmCommandCfg",
     "orientation_command_error",

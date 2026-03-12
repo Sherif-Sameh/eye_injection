@@ -51,8 +51,8 @@ class IsaacLabTFBroadcaster(Node):
         if self._has_camera:
             self._make_static_camera_transform(env)
 
-        # Check for existence of tag pose command
-        self._has_tag_cmd = "tag_pose" in env.command_manager.active_terms
+        # Check for existence of tag trajectory command
+        self._has_tag_cmd = "tag_traj" in env.command_manager.active_terms
 
         # Store robot body names + "world"
         asset: Articulation = env.scene["robot"]
@@ -108,7 +108,7 @@ class IsaacLabTFBroadcaster(Node):
         """
         if not self._has_tag_cmd:
             return
-        cmd = cmd[0].cpu()
+        cmd = cmd[0, 6:].cpu()  # skip camera twist command
         n_tags = cmd.shape[0] // 8
 
         # Create transforms for each body
