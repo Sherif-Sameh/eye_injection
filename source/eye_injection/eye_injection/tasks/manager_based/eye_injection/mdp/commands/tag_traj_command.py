@@ -77,8 +77,6 @@ class TagTrajCommand(CommandTerm):
         self.cam_twist = torch.zeros((env.num_envs, 6), device=self.device)
         self.tag_id = torch.tensor(cfg.tag_ids, device=self.device).repeat((env.num_envs, 1))
         self.tag_cam_pose = torch.zeros((env.num_envs, self.n_tags * 7), device=self.device)
-        for i in range(self.n_tags):
-            self.tag_cam_pose[:, i * 7 + 3] = 1.0  # ensure quaternions are always valid
 
     def __str__(self) -> str:
         msg = "TagTrajCommandCfg:\n"
@@ -114,8 +112,9 @@ class TagTrajCommand(CommandTerm):
 
     def _resample_command(self, env_ids: Sequence[int]) -> None:
         """Resample the command for the specified environments."""
-        # resampling is not needed for this command generator
-        # commands will be updated when _update_command is called
+        # force a command update to follow end-effector pose command
+        self.time_left[env_ids] = torch.inf
+        self._update_command()
 
     def _update_command(self) -> None:
         """Update the command based on the current state."""
