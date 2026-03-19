@@ -15,7 +15,7 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="ROS2 agent for Isaac Lab environments.")
 parser.add_argument("-s", "--seed", type=int, default=None, help="Environment seed.")
 parser.add_argument("-n", "--n_runs", type=int, default=0, help="Number of episodes to simulate.")
-parser.add_argument("-c", "--config", type=str, default="base.toml", help="Config file to load.")
+parser.add_argument("-c", "--config", type=str, default="vs/base.toml", help="Config file to load.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -75,7 +75,8 @@ def main():
 
     # create and reset environment
     env = gym.make(config["task_name"], cfg=config["env"])
-    obs, info = env.reset()
+    env.reset()
+    obs, info = env.reset()  # some properties don't update on first reset
 
     # initialize ROS and create ROS 2 bridge and tf broadcaster nodes
     rclpy.init()

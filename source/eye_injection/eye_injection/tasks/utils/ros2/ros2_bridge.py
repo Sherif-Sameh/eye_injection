@@ -69,8 +69,11 @@ class IsaacLabRos2Bridge(Node):
         # Publishers
         self._setup_command_publsher(env)
         self._pub_obs_js = self.create_publisher(JointState, "/isaaclab/joint_states", 0)
-        self._pub_perr = self.create_publisher(PoseStamped, "/isaaclab/pose_error", 10)
         self._pub_rst = self.create_publisher(Empty, "/isaaclab/reset", 0)
+
+        self.has_traj_cmd = "target_traj" in env.command_manager.active_terms
+        if self.has_traj_cmd:
+            self._pub_perr = self.create_publisher(PoseStamped, "/isaaclab/pose_error", 10)
 
         has_camera = any([len(space.shape) == 4 for space in env.observation_space.spaces.values()])
         if has_camera:
@@ -133,6 +136,8 @@ class IsaacLabRos2Bridge(Node):
         Args:
             env: ManagerBasedRLEnv to interface with ROS 2 using the bridge node.
         """
+        if not self.has_traj_cmd:
+            return
         # extract logged pose error metric from environment
         command_term: TrajSmCommand = env.command_manager.get_term("target_traj")
         pose_error = command_term.metrics["pose_error"][0].cpu()
