@@ -12,7 +12,7 @@ import ::tex::gamma_mode;
 export material charuco(*)
  = OmniPBR::OmniPBR(
     diffuse_color_constant: color(0.f, 0.f, 0.f),
-    diffuse_texture: texture_2d("./charuco_10x10_0.04_0.03_DICT_5X5_50.png", ::tex::gamma_default, ""),
+    diffuse_texture: texture_2d("./charuco_10x10_0.03_0.02_DICT_5X5_50.png", ::tex::gamma_default, ""),
     albedo_desaturation: 0.f,
     albedo_add: 0.f,
     albedo_brightness: 1.f,
