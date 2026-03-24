@@ -98,7 +98,6 @@ class IsaacLabRos2Bridge(Node):
         # Variables for storing actions, buffer shape = (num_steps, 1, act_dim)
         self._device = env.device
         self._action_ctr = 1
-        self._action_zero = torch.zeros(*env.action_space.shape, device=env.device)
         self._action_buffer = torch.zeros(1, *env.action_space.shape, device=env.device)
 
     def publish_commands(self, cmd: Tensor) -> None:
@@ -178,16 +177,15 @@ class IsaacLabRos2Bridge(Node):
     def get_action(self) -> Tensor:
         """Get the current action to apply to environment from the action buffer.
 
-        Note: if the action buffer is empty, the zero action is applied instead.
+        Note: if all actions in the buffer have already been previously applied, the last action is
+        repeated until new actions are recieved and the buffer is updated.
 
         Returns:
             Tensor containing the action to apply to environment. Shape is (1, act_dim).
         """
-        if self._action_ctr < self._action_buffer.shape[0]:
-            action = self._action_buffer[self._action_ctr]
-            self._action_ctr += 1
-        else:
-            action = self._action_zero
+        idx = min(self._action_ctr, self._action_buffer.shape[0] - 1)
+        action = self._action_buffer[idx]
+        self._action_ctr += 1
         return action
 
     @staticmethod
