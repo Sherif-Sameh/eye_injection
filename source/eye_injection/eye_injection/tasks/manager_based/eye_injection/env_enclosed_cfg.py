@@ -40,5 +40,5 @@ class EyeInjectionSceneEnclosedCfg(EyeInjectionSceneAprilTagsCfg):
 class EyeInjectionEnvEnclosedCfg(EyeInjectionEnvAprilTagsCfg):
     # Scene settings
     scene: EyeInjectionSceneEnclosedCfg = EyeInjectionSceneEnclosedCfg(
-        num_envs=4096, env_spacing=5.0, replicate_physics=False
+        num_envs=4096, env_spacing=6.5, replicate_physics=False
     )

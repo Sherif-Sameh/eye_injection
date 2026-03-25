@@ -144,7 +144,7 @@ class EyeInjectionEnvVsCfg(EyeInjectionEnvEnclosedCfg):
     )
     # Scene settings
     scene: EyeInjectionSceneVsCfg = EyeInjectionSceneVsCfg(
-        num_envs=1, env_spacing=5.0, replicate_physics=False
+        num_envs=1, env_spacing=6.5, replicate_physics=False
     )
     # Basic settings
     observations: ObservationsVsCfg = ObservationsVsCfg()

@@ -3,7 +3,7 @@ from isaaclab.assets import RigidObjectCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR
 
 # Room parameters
-ROOM_SIZE = 5.0
+ROOM_SIZE = 6.5
 ROOM_HEIGHT = 2.5
 ROOM_THICKNESS = 0.1
 

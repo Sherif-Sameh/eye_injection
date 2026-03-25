@@ -58,7 +58,7 @@ class CommandsVsCalibCfg:
 class EyeInjectionEnvVsCalibCfg(EyeInjectionEnvVsCfg):
     # Scene settings
     scene: EyeInjectionSceneVsCalibCfg = EyeInjectionSceneVsCalibCfg(
-        num_envs=1, env_spacing=5.0, replicate_physics=False
+        num_envs=1, env_spacing=6.5, replicate_physics=False
     )
     # Basic settings
     observations: ObservationsImageCfg = ObservationsImageCfg()
