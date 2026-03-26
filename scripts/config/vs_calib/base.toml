@@ -26,12 +26,12 @@ replicate_physics = false
 
 # Robot configuration
 [env.scene.robot.init_state.joint_pos]
-shoulder_pan_joint = 0.8355
-shoulder_lift_joint = -1.4803
-elbow_joint = 1.7856
-wrist_1_joint = -1.8754
-wrist_2_joint = -1.5702
-wrist_3_joint = 0.8342
+shoulder_pan_joint = 1.0492
+shoulder_lift_joint = -1.4320
+elbow_joint = 1.9268
+wrist_1_joint = -2.069
+wrist_2_joint = -1.5694
+wrist_3_joint = 1.0481
 
 # Camera configuration
 [env.scene.camera]
@@ -45,30 +45,30 @@ data_types = ["rgb"]
 focal_length = 24.0
 focus_distance = 400.0
 horizontal_aperture = 20.955
-clipping_range = [0.1, 1e5]
+clipping_range = [0.01, 1e5]
 
 # Camera extrinsic parameters
 [env.scene.camera.offset]
-pos = [-0.06, 0.0, -0.035]
-rot = [1.0, 0.0, 0.0, 0.0]
+pos = [0.0, -0.04, 0.135]
+rot = [0.9884, -0.1521, 0.0, 0.0]
 convention = "ros"
 
 # ChArUco board configuration
 [env.scene.person.spawn]
 scale = [0.3, 0.3, 1.0]
 [env.scene.person.init_state]
-pos = [0.0, 0.5, 0.794]
+pos = [0.0, 0.4, 0.794]
 
 # AprilTags configuration
 [env.scene.marker_1.spawn]
 scale = [0.1, 0.1, 1.0]
 [env.scene.marker_1.init_state]
-pos = [0.2, 0.75, 0.794]
+pos = [0.175, 0.65, 0.794]
 
 [env.scene.marker_2.spawn]
 scale = [0.1, 0.1, 1.0]
 [env.scene.marker_2.init_state]
-pos = [-0.2, 0.75, 0.794]
+pos = [-0.175, 0.65, 0.794]
 
 
 # Observations configuration (without noise)
