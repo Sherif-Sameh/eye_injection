@@ -32,7 +32,7 @@ class EyeInjectionSceneVsCalibCfg(EyeInjectionSceneVsCfg):
                 mdl_path=str(Path(__file__).parent / "materials/charuco.mdl")
             ),
         ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.5, 0.794)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.4, 0.794)),
     )
 
 

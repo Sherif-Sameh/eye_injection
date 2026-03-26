@@ -33,7 +33,7 @@ class EyeInjectionSceneImageCfg(EyeInjectionSceneBaseCfg):
 
     # robot wrist camera
     camera = TiledCameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link/Camera",
+        prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link/flange/tool0/Camera",
         update_period=0.1,
         height=480,
         width=640,
@@ -42,10 +42,10 @@ class EyeInjectionSceneImageCfg(EyeInjectionSceneBaseCfg):
             focal_length=24.0,
             focus_distance=400.0,
             horizontal_aperture=20.955,
-            clipping_range=(0.1, 1.0e5),
+            clipping_range=(0.01, 1.0e5),
         ),
         offset=TiledCameraCfg.OffsetCfg(
-            pos=(-0.06, 0.0, -0.035), rot=(1.0, 0.0, 0.0, 0.0), convention="ros"
+            pos=(0.0, -0.04, 0.135), rot=(0.9884, -0.1521, 0.0, 0.0), convention="ros"
         ),
     )
 

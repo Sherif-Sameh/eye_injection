@@ -52,6 +52,7 @@ class EyeInjectionSceneBaseCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = UR10e_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=UR10e_CFG.spawn.replace(
+            usd_path=str(Path(__file__).parent / "assets/robot.usd"),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True, max_depenetration_velocity=5.0
             ),
@@ -59,14 +60,14 @@ class EyeInjectionSceneBaseCfg(InteractiveSceneCfg):
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos={
-                "shoulder_pan_joint": 0.6272,
-                "shoulder_lift_joint": -1.2816,
-                "elbow_joint": 1.2922,
-                "wrist_1_joint": -1.5829,
-                "wrist_2_joint": -1.5709,
-                "wrist_3_joint": 0.6273,
+                "shoulder_pan_joint": 0.7131,
+                "shoulder_lift_joint": -1.2680,
+                "elbow_joint": 1.2690,
+                "wrist_1_joint": -1.5728,
+                "wrist_2_joint": -1.5714,
+                "wrist_3_joint": 0.7138,
             },
-            pos=(0.15, -0.7, 1.05),
+            pos=(0.3, -0.7, 1.05),
         ),
     )
 
@@ -158,8 +159,8 @@ class CommandsBaseCfg:
         binary_command_name="target_eye",
         motion_cfg=mdp.TrajSmCommandCfg.MotionCfg(
             pose_tol=(0.1, 0.1),
-            target_offset=0.1,
-            approach_offset=0.3,
+            target_offset=0.3,
+            approach_offset=0.6,
             approach_vel=0.05,
             stationary_time=4.0,
             retreat_vel=0.05,
