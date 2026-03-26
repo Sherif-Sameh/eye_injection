@@ -76,3 +76,6 @@ tests/
 
 # .vscode
 .vscode/browse.*
+
+# robot model
+**/assets/robot.usd
