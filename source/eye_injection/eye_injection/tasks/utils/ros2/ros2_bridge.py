@@ -75,11 +75,15 @@ class IsaacLabRos2Bridge(Node):
         if self.has_traj_cmd:
             self._pub_perr = self.create_publisher(PoseStamped, "/isaaclab/pose_error", 10)
 
-        has_camera = any([len(space.shape) == 4 for space in env.observation_space.spaces.values()])
+        has_camera = "camera" in env.scene.keys()
         if has_camera:
+            data_types: list[str] = env.scene["camera"].cfg.data_types
+            has_depth_type = "depth" in data_types or "distance_to_camera" in data_types
             # Setup camera publishers
             self._setup_observations_image_publisher(env)
             self._setup_camera_info_publisher(env)
+            if has_depth_type:
+                self._setup_observations_depth_publisher(env)
 
         # Subscribers
         self._action_fn = self._get_action_fn(env)
@@ -312,6 +316,28 @@ class IsaacLabRos2Bridge(Node):
             nodeNamespace="",
             queueSize=0,
             topicName="/isaaclab/camera/image_raw",
+        )
+        writer.attach([render_product])
+
+    def _setup_observations_depth_publisher(self, env: ManagerBasedRLEnv) -> None:
+        """Setup publisher for depth image observations through IsaacSim.
+
+        Args:
+            env: ManagerBasedRLEnv to interface with ROS 2 using the bridge node.
+        """
+        camera: TiledCamera = env.scene["camera"]
+        render_product = camera.render_product_paths[0]
+
+        # Link the camera's render product and publish the data to the specified topic name
+        rv = omni.syntheticdata.SyntheticData.convert_sensor_type_to_rendervar(
+            sd.SensorType.DistanceToImagePlane.name
+        )
+        writer = rep.writers.get(rv + "ROS2PublishImage")
+        writer.initialize(
+            frameId="camera_depth_aligned_optical_frame",
+            nodeNamespace="",
+            queueSize=0,
+            topicName="/isaaclab/camera/depth_raw",
         )
         writer.attach([render_product])
 
