@@ -15,6 +15,7 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="ROS2 agent for Isaac Lab environments.")
 parser.add_argument("-s", "--seed", type=int, default=None, help="Environment seed.")
 parser.add_argument("-n", "--n_runs", type=int, default=0, help="Number of episodes to simulate.")
+parser.add_argument("-l", "--length", type=float, default=None, help="Episode length in seconds.")
 parser.add_argument("-c", "--config", type=str, default="vs/base.toml", help="Config file to load.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -57,9 +58,11 @@ def load_config() -> dict[str, Any]:
     config = load_toml(Path(__file__).parent / f"config/{args_cli.config}")
     # load default environment configuration
     env_cfg = parse_env_cfg(config["task_name"])
-    # override seed if given in args
+    # override seed and episode length if given in args
     if args_cli.seed is not None:
         config["env"]["seed"] = args_cli.seed
+    if args_cli.length is not None:
+        config["env"]["episode_length_s"] = args_cli.length
     # convert any noise cfgs descriptions to instances of NoiseCfg
     to_noise_cfg(config)
     # apply overrides from config file
