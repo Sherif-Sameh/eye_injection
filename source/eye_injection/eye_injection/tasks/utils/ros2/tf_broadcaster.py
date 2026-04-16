@@ -16,6 +16,8 @@ from scipy.spatial.transform import Rotation as R
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros.transform_broadcaster import TransformBroadcaster
 
+from eye_injection.tasks.utils.isaac.common import get_prim_relative_pose
+
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
@@ -48,8 +50,7 @@ class IsaacLabTFBroadcaster(Node):
         self._has_camera = any(
             [len(space.shape) == 4 for space in env.observation_space.spaces.values()]
         )
-        if self._has_camera:
-            self._make_static_camera_transform(env)
+        self.make_static_transforms(env)
 
         # Check for existence of tag trajectory command
         self._has_tag_cmd = "tag_traj" in env.command_manager.active_terms
@@ -60,8 +61,13 @@ class IsaacLabTFBroadcaster(Node):
 
     def make_static_transforms(self, env: ManagerBasedRLEnv) -> None:
         """Initialize and send static transforms to TF tree."""
+        # Collect eye and camera transforms
+        transforms = self._make_static_eye_transforms(env)
         if self._has_camera:
-            self._make_static_camera_transform(env)
+            transforms.extend(self._make_static_camera_transforms(env))
+
+        # Send static transforms
+        self._tf_static_broadcaster.sendTransform(transforms)
 
     def make_robot_transforms(self, env: ManagerBasedRLEnv) -> None:
         """Create and send robot relative transforms between links to TF tree.
@@ -135,15 +141,55 @@ class IsaacLabTFBroadcaster(Node):
         # Send transforms
         self._tf_broadcaster.sendTransform(transforms)
 
-    def _make_static_camera_transform(self, env: ManagerBasedRLEnv) -> None:
-        """Initialize and send static transform from camera to parent link frame.
+    def _make_static_eye_transforms(self, env: ManagerBasedRLEnv) -> list[TransformStamped]:
+        """Initialize and get the static transforms from eye frames to the robot base_link frame.
 
-        Sends two transforms. A ground truth transform with the child_frame_id of
-        "camera_color_optical_frame_gt" and a potentially noise transform with the child_frame_id
+        Args:
+            env: ManagerBasedRLEnv to interface with ROS 2 using the TF broadcaster node.
+
+        Returns:
+            A list containing the two transforms of each eye wrt to the robot's base_link frame.
+        """
+        # Retrieve relative eye poses from environment
+        eye_left = get_prim_relative_pose(
+            "/World/envs/.*/.*/.*/.*/.*/EyeLeft", "/World/envs/.*/Robot/base_link"
+        )[0]
+        eye_right = get_prim_relative_pose(
+            "/World/envs/.*/.*/.*/.*/.*/EyeRight", "/World/envs/.*/Robot/base_link"
+        )[0]
+
+        # Setup transformation objects
+        transforms = []
+        for label, pose in zip(["eye_left", "eye_right"], [eye_left, eye_right]):
+            t = TransformStamped()
+            t_sim = env.common_step_counter * env.step_dt
+            t.header.stamp = Time(seconds=t_sim).to_msg()
+            t.header.frame_id = "base_link"
+            t.child_frame_id = label
+
+            t.transform.translation.x = float(pose[0])
+            t.transform.translation.y = float(pose[1])
+            t.transform.translation.z = float(pose[2])
+
+            t.transform.rotation.w = float(pose[3])
+            t.transform.rotation.x = float(pose[4])
+            t.transform.rotation.y = float(pose[5])
+            t.transform.rotation.z = float(pose[6])
+            transforms.append(t)
+        return transforms
+
+    def _make_static_camera_transforms(self, env: ManagerBasedRLEnv) -> list[TransformStamped]:
+        """Initialize and get static transforms from camera to parent link frame.
+
+        Returns two transforms. A ground truth transform with the child_frame_id of
+        "camera_color_optical_frame_gt" and a potentially noisy transform with the child_frame_id
         of "camera_color_optical_frame".
 
         Args:
             env: ManagerBasedRLEnv to interface with ROS 2 using the TF broadcaster node.
+
+        Returns:
+            A list containing the two transforms of the camera frame wrt its parent link frame.
         """
         # Retrieve the camera sensor and offset configuration from environment
         asset: TiledCamera = env.scene["camera"]
@@ -181,9 +227,7 @@ class IsaacLabTFBroadcaster(Node):
             t.transform.rotation.y = float(r[2])
             t.transform.rotation.z = float(r[3])
             transforms.append(t)
-
-        # Send static transforms
-        self._tf_static_broadcaster.sendTransform(transforms)
+        return transforms
 
     def _apply_noise_to_camera_transform(self, pos: tuple, quat: tuple) -> tuple[tuple, tuple]:
         """Apply randomly sampled noise to the given camera transform.
