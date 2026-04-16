@@ -1,0 +1,86 @@
+### Environment configuration for eye calibration ###
+
+# Environment name
+task_name = "Isaac-Eye-Injection-Vs-Eye-v0"
+
+
+# Environment configuration
+# General settings
+[env]
+seed = 0
+episode_length_s = 50.0
+decimation = 2
+
+
+# Simulation configuration
+[env.sim]
+device = "cpu"
+use_fabric = true
+
+
+# Scene configuration
+[env.scene]
+num_envs = 1
+env_spacing = 5.0
+replicate_physics = false
+
+# Camera configuration
+[env.scene.camera]
+update_period = 0.1
+height = 480
+width = 640
+data_types = ["rgb"]
+
+# Camera intrinsic parameters
+[env.scene.camera.spawn]
+focal_length = 24.0
+focus_distance = 400.0
+horizontal_aperture = 20.955
+clipping_range = [0.01, 1e5]
+
+# Camera extrinsic parameters
+[env.scene.camera.offset]
+pos = [0.0, -0.04, 0.135]
+rot = [0.9884, -0.1521, 0.0, 0.0]
+convention = "ros"
+
+# AprilTags configuration
+[env.scene.marker_1.spawn]
+scale = [0.1, 0.1, 1.0]
+[env.scene.marker_1.init_state]
+pos = [0.175, 0.65, 0.794]
+
+[env.scene.marker_2.spawn]
+scale = [0.1, 0.1, 1.0]
+[env.scene.marker_2.init_state]
+pos = [-0.175, 0.65, 0.794]
+
+
+# Observations configuration (without noise)
+[env.observations.policy_prop.joint_pos.noise]
+noise_class = "ConstantNoiseCfg"
+
+[env.observations.policy_prop.joint_vel.noise]
+noise_class = "ConstantNoiseCfg"
+
+
+# Events configuration
+[env.events.reset_robot_joints]
+mode = "reset"
+[env.events.reset_robot_joints.params]
+position_range = [-0.05, 0.05]
+velocity_range = [-0.05, 0.05]
+
+[env.events.rand_gravity_force]
+mode = "reset"
+[env.events.rand_gravity_force.params]
+distribution_params = [-0.0, 0.0]
+distribution = "uniform"
+
+
+# Camera extrinsics noise configuration (without noise)
+[tf_broadcaster]
+
+
+# Camera intrinsics noise configuration (without noise)
+[ros2_bridge]
