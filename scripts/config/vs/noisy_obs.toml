@@ -40,20 +40,20 @@ clipping_range = [0.01, 1e5]
 
 # Camera extrinsic parameters
 [env.scene.camera.offset]
-pos = [0.0, -0.04, 0.135]
+pos = [0.0, -0.04, 0.15]
 rot = [0.9884, -0.1521, 0.0, 0.0]
 convention = "ros"
 
 # AprilTags configuration
 [env.scene.marker_1.spawn]
-scale = [0.1, 0.1, 1.0]
+scale = [0.06, 0.06, 1.0]
 [env.scene.marker_1.init_state]
-pos = [0.175, 0.65, 0.794]
+pos = [0.145, 0.65, 0.794]
 
 [env.scene.marker_2.spawn]
-scale = [0.1, 0.1, 1.0]
+scale = [0.06, 0.06, 1.0]
 [env.scene.marker_2.init_state]
-pos = [-0.175, 0.65, 0.794]
+pos = [-0.145, 0.65, 0.794]
 
 
 # Observations configuration
@@ -76,8 +76,8 @@ prob_1 = 0.0  # fixed to left-eye
 
 [env.commands.target_traj.motion_cfg]
 pose_tol = [0.02, 0.05]
-target_offset = 0.375
-approach_offset = 0.7   
+target_offset = 0.3
+approach_offset = 0.6   
 approach_vel = 0.05
 stationary_time = 4.0
 retreat_vel = 0.05
