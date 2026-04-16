@@ -45,7 +45,7 @@ class EyeInjectionSceneImageCfg(EyeInjectionSceneBaseCfg):
             clipping_range=(0.01, 1.0e5),
         ),
         offset=TiledCameraCfg.OffsetCfg(
-            pos=(0.0, -0.04, 0.135), rot=(0.9884, -0.1521, 0.0, 0.0), convention="ros"
+            pos=(0.0, -0.04, 0.15), rot=(0.9884, -0.1521, 0.0, 0.0), convention="ros"
         ),
     )
 
