@@ -107,17 +107,13 @@ class IsaacLabRos2Bridge(Node):
     def publish_commands(self, cmd: Tensor) -> None:
         """Publish commands to ROS 2 topic of according to command publisher setup.
 
-        New commands will be published only if they have changed from the previous command.
-
         Args:
             cmd: Tensor containing the latest commands to publish. Shape is (1, cmd_dim).
         """
         assert cmd.dtype == torch.float32
         assert cmd.ndim == 2
         cmd = cmd[0].cpu()
-        if self._prev_cmd is None or not torch.allclose(self._prev_cmd, cmd, atol=1e-3):
-            self._pub_cmd_fn(cmd)
-            self._prev_cmd = cmd.clone()
+        self._pub_cmd_fn(cmd)
 
     def publish_observations_jointstate(self, obs: Tensor) -> None:
         """Publish joint state observations to ROS 2 topic of type JointState.
@@ -249,7 +245,7 @@ class IsaacLabRos2Bridge(Node):
             cls = MultiDOFJointTrajectory
             fn = self._publish_commands_vs
         self._prev_cmd = None
-        self._pub_cmd = self.create_publisher(cls, "/isaaclab/command", 0)
+        self._pub_cmd = self.create_publisher(cls, "/isaaclab/command", 1)
         self._pub_cmd_fn = fn
 
     def _publish_commands_default(self, cmd: Tensor) -> None:

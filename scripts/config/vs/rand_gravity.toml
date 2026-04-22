@@ -70,8 +70,8 @@ prob_1 = 0.0  # fixed to left-eye
 
 [env.commands.target_traj.motion_cfg]
 pose_tol = [0.02, 0.05]
-target_offset = 0.3
-approach_offset = 0.6   
+target_offset = 0.075
+approach_offset = 0.325   
 approach_vel = 0.05
 stationary_time = 4.0
 retreat_vel = 0.05
