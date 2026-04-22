@@ -5,6 +5,7 @@
 
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObjectCollectionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -12,7 +13,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import TiledCameraCfg
 from isaaclab.utils import configclass
 
-from eye_injection.tasks.utils.isaac.room_cfg import GROUND_TEXTURE_PATHS
+from eye_injection.tasks.utils.isaac.room_cfg import GROUND_TEXTURE_PATHS, ROOM_CFG
 
 from . import mdp
 from .env_base_cfg import (
@@ -30,6 +31,16 @@ from .env_base_cfg import (
 @configclass
 class EyeInjectionSceneImageCfg(EyeInjectionSceneBaseCfg):
     """Extended configuration for image-based scene."""
+
+    # simple room
+    ground = ROOM_CFG["Ground"].replace(prim_path="{ENV_REGEX_NS}/Ground")
+    walls = RigidObjectCollectionCfg(
+        rigid_objects={
+            k: v.replace(prim_path="{ENV_REGEX_NS}" + f"/{k}")
+            for k, v in ROOM_CFG.items()
+            if "Wall" in k
+        }
+    )
 
     # robot wrist camera
     camera = TiledCameraCfg(
@@ -103,7 +114,7 @@ class EventImageCfg(EventBaseCfg):
 class EyeInjectionEnvImageCfg(EyeInjectionEnvBaseCfg):
     # Scene settings
     scene: EyeInjectionSceneImageCfg = EyeInjectionSceneImageCfg(
-        num_envs=4096, env_spacing=3.0, replicate_physics=False
+        num_envs=4096, env_spacing=6.5, replicate_physics=False
     )
     # Basic settings
     observations: ObservationsImageCfg = ObservationsImageCfg()

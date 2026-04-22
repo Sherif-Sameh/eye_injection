@@ -4,7 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from pathlib import Path
 
+import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -16,8 +19,7 @@ from eye_injection.tasks.utils.isaac import PhysxReducedCfg
 
 from . import mdp
 from .env_base_cfg import CommandsBaseCfg
-from .env_enclosed_cfg import EyeInjectionEnvEnclosedCfg, EyeInjectionSceneEnclosedCfg
-from .env_image_cfg import ObservationsImageCfg
+from .env_image_cfg import EyeInjectionEnvImageCfg, EyeInjectionSceneImageCfg, ObservationsImageCfg
 
 ##
 # Scene definition
@@ -25,10 +27,32 @@ from .env_image_cfg import ObservationsImageCfg
 
 
 @configclass
-class EyeInjectionSceneVsCfg(EyeInjectionSceneEnclosedCfg):
+class EyeInjectionSceneVsCfg(EyeInjectionSceneImageCfg):
     """Extended configuration for visual servoing scene."""
 
-    # no changes to assets
+    # AprilTags
+    marker_1 = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Bed/Marker_1",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=str(Path(__file__).parent / "assets/Plane.usd"),
+            scale=(0.06, 0.06, 1.0),
+            visual_material=sim_utils.MdlFileCfg(
+                mdl_path=str(Path(__file__).parent / "materials/AprilTag_00.mdl")
+            ),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.145, 0.65, 0.794)),
+    )
+    marker_2 = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Bed/Marker_2",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=str(Path(__file__).parent / "assets/Plane.usd"),
+            scale=(0.06, 0.06, 1.0),
+            visual_material=sim_utils.MdlFileCfg(
+                mdl_path=str(Path(__file__).parent / "materials/AprilTag_01.mdl")
+            ),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.145, 0.65, 0.794)),
+    )
 
     def __post_init__(self):
         # Disable joint stiffness to allow for pure joint velocity control
@@ -135,7 +159,7 @@ class RewardsVsCfg:
 
 
 @configclass
-class EyeInjectionEnvVsCfg(EyeInjectionEnvEnclosedCfg):
+class EyeInjectionEnvVsCfg(EyeInjectionEnvImageCfg):
     # Simulation settings
     sim: SimulationCfg = SimulationCfg(
         physx=PhysxReducedCfg(
