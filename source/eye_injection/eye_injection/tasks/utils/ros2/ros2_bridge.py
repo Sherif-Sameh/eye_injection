@@ -43,12 +43,12 @@ class IsaacLabRos2Bridge(Node):
     """ROS 2 bridge node for IsaacLab environments.
 
     The node assumes that the environment's observation space has the following structure:
-        Commands: The commands to be published as a Float32MultiArray message[1].
+        Commands: The commands to be published as a Float32MultiArray message*.
         Proprioceptive observations: Joint positions and velocities to be published as a JointState message.
-        Extroceptive observations (optional): Camera images to be published as an Image message.
+        Extroceptive observations (optional): Camera observations to be published as an Image message.
 
-    [1]: This the default case. For the `TagTrajCommand` command if it exists, they'll be published
-    as a MultiDOFJointTrajectory for more clarity. Refer to `_publish_commands_tag()` for msg details.
+    *: This the default case. For the `VsTrajCommand` command if it exists, they'll be published
+    as a MultiDOFJointTrajectory for more clarity. Refer to `_publish_commands_vs()` for msg details.
 
     Meanwhile, actions are expected to be published through the JointTrajectory message interface.
 
@@ -107,13 +107,17 @@ class IsaacLabRos2Bridge(Node):
     def publish_commands(self, cmd: Tensor) -> None:
         """Publish commands to ROS 2 topic of according to command publisher setup.
 
+        New commands will be published only if they have changed from the previous command.
+
         Args:
             cmd: Tensor containing the latest commands to publish. Shape is (1, cmd_dim).
         """
         assert cmd.dtype == torch.float32
         assert cmd.ndim == 2
         cmd = cmd[0].cpu()
-        self._pub_cmd_fn(cmd)
+        if self._prev_cmd is None or not torch.allclose(self._prev_cmd, cmd, atol=1e-3):
+            self._pub_cmd_fn(cmd)
+            self._prev_cmd = cmd.clone()
 
     def publish_observations_jointstate(self, obs: Tensor) -> None:
         """Publish joint state observations to ROS 2 topic of type JointState.
@@ -237,13 +241,14 @@ class IsaacLabRos2Bridge(Node):
 
     def _setup_command_publsher(self, env: ManagerBasedRLEnv) -> None:
         """Setup command publisher and function according to the environment's config."""
-        _has_tag_cmd = "tag_traj" in env.command_manager.active_terms
-        if not _has_tag_cmd:
+        has_vs_cmd = "vs_traj" in env.command_manager.active_terms
+        if not has_vs_cmd:
             cls = Float32MultiArray
             fn = self._publish_commands_default
         else:
             cls = MultiDOFJointTrajectory
-            fn = self._publish_commands_tag
+            fn = self._publish_commands_vs
+        self._prev_cmd = None
         self._pub_cmd = self.create_publisher(cls, "/isaaclab/command", 0)
         self._pub_cmd_fn = fn
 
@@ -257,44 +262,38 @@ class IsaacLabRos2Bridge(Node):
         msg.data = cmd.tolist()
         self._pub_cmd.publish(msg)
 
-    def _publish_commands_tag(self, cmd: Tensor) -> None:
-        """Publish tag state command to ROS 2 topic of type MultiDOFJointTrajectory.
+    def _publish_commands_vs(self, cmd: Tensor) -> None:
+        """Publish state command to ROS 2 topic of type MultiDOFJointTrajectory.
 
-        **Note**: In this case, each "joint" is used to refer to a single tag. This msg type is the
-        closest thing to a CartesianTrajectory msg similar to the JointTrajectory msg from the
-        standard packages available for ROS 2 with IsaacSim.
+        **Note**: In this case, only a single "joint" exists. This msg type is the closest thing to
+        a CartesianTrajectory msg similar to the JointTrajectory msg from the standard packages
+        available for ROS 2 within IsaacSim.
 
         Args:
-            cmd: Tensor containing the latest tag state commands to publish. Shape is (6 + 8 * nT,).
+            cmd: Tensor containing the latest state commands to publish. Shape is (13,).
         """
         msg = MultiDOFJointTrajectory()
         msg.header.stamp = self.get_clock().now().to_msg()
+        msg.joint_names.append("0")
 
-        cam_twist = Twist()
-        cam_twist.linear.x = float(cmd[0])
-        cam_twist.linear.y = float(cmd[1])
-        cam_twist.linear.z = float(cmd[2])
-        cam_twist.angular.x = float(cmd[3])
-        cam_twist.angular.y = float(cmd[4])
-        cam_twist.angular.z = float(cmd[5])
+        t = Transform()
+        t.translation.x = float(cmd[0])
+        t.translation.y = float(cmd[1])
+        t.translation.z = float(cmd[2])
+        t.rotation.w = float(cmd[3])
+        t.rotation.x = float(cmd[4])
+        t.rotation.y = float(cmd[5])
+        t.rotation.z = float(cmd[6])
 
-        n_tags = (cmd.shape[0] - 6) // 8
-        traj_pt = MultiDOFJointTrajectoryPoint()
-        for i in range(n_tags):
-            tag_id = int(cmd[6 + i * 8])
-            msg.joint_names.append(str(tag_id))
+        tw = Twist()
+        tw.linear.x = float(cmd[7])
+        tw.linear.y = float(cmd[8])
+        tw.linear.z = float(cmd[9])
+        tw.angular.x = float(cmd[10])
+        tw.angular.y = float(cmd[11])
+        tw.angular.z = float(cmd[12])
 
-            t = Transform()
-            t.translation.x = float(cmd[6 + i * 8 + 1])
-            t.translation.y = float(cmd[6 + i * 8 + 2])
-            t.translation.z = float(cmd[6 + i * 8 + 3])
-            t.rotation.w = float(cmd[6 + i * 8 + 4])
-            t.rotation.x = float(cmd[6 + i * 8 + 5])
-            t.rotation.y = float(cmd[6 + i * 8 + 6])
-            t.rotation.z = float(cmd[6 + i * 8 + 7])
-            traj_pt.transforms.append(t)
-            traj_pt.velocities.append(cam_twist)
-        msg.points.append(traj_pt)
+        msg.points.append(MultiDOFJointTrajectoryPoint(transforms=[t], velocities=[tw]))
         self._pub_cmd.publish(msg)
 
     def _setup_observations_image_publisher(self, env: ManagerBasedRLEnv) -> None:

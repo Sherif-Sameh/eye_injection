@@ -69,13 +69,15 @@ class EyeInjectionSceneVsCfg(EyeInjectionSceneImageCfg):
 class CommandsVsCfg(CommandsBaseCfg):
     """Extended command terms for visual servoing MDP."""
 
-    # Tag trajectory command for retargeting state commands to AprilTags
-    tag_traj = mdp.TagTrajCommandCfg(
-        camera_asset_name="camera",
-        tag_prim_names=["/World/envs/env_.*/Bed/Marker_1", "/World/envs/env_.*/Bed/Marker_2"],
-        tag_ids=[0, 1],
+    # VS trajectory command for retargeting state commands
+    vs_traj = mdp.VsTrajCommandCfg(
+        ref_prim_names=(
+            "/World/envs/env_.*/Bed/Person/Person/Root/EyeLeft",
+            "/World/envs/env_.*/Bed/Person/Person/Root/EyeRight",
+        ),
         pose_ref_prim_name="/World/envs/env_.*/Robot/base_link",
         traj_command_name="target_traj",
+        binary_command_name="target_eye",
         debug_vis=False,
     )
 
@@ -109,7 +111,7 @@ class ObservationsVsCfg(ObservationsImageCfg):
         """Modified observations for policy commands group."""
 
         # observation terms (order preserved)
-        tag_traj_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "tag_traj"})
+        vs_traj_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "vs_traj"})
 
         def __post_init__(self) -> None:
             self.enable_corruption = False

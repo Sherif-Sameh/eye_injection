@@ -122,7 +122,12 @@ class TrajSmCommand(CommandTerm):
         """The current command (state + pose + twist) of each environment. Shape is (num_envs, 14)."""
         # combine state + pose + velocity
         state = self.sm_state[:, None]
-        pose = self.des_ee_pose[:, [0, 1, 2, 6, 3, 4, 5]]
+        des_ee_pose = torch.where(
+            (state == TrajSmState.Approach) | (state == TrajSmState.Hold),
+            self.tgt_ee_pose,
+            self.apr_ee_pose,
+        )
+        pose = des_ee_pose[:, [0, 1, 2, 6, 3, 4, 5]]
         twist = torch.zeros((self.num_envs, 6), device=self.device)
         twist[:, 2] = self.state_z_vel[self.sm_state]
         return torch.cat([state, pose, twist], dim=-1)

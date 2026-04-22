@@ -4,8 +4,8 @@ from isaaclab.managers import CommandTermCfg
 from isaaclab.utils import configclass
 
 from .binary_command import BinaryCommand
-from .tag_traj_command import TagTrajCommand
 from .traj_sm_command import TrajSmCommand
+from .vs_traj_command import VsTrajCommand
 
 
 @configclass
@@ -75,25 +75,22 @@ class TrajSmCommandCfg(CommandTermCfg):
 
 
 @configclass
-class TagTrajCommandCfg(CommandTermCfg):
-    """Configuration for the tag trajectory command generator."""
+class VsTrajCommandCfg(CommandTermCfg):
+    """Configuration for the visual servoing trajectory command generator."""
 
-    class_type: type = TagTrajCommand
+    class_type: type = VsTrajCommand
 
-    camera_asset_name: str = MISSING
-    """Name of the source camera asset for generating state commands."""
-
-    tag_prim_names: list[str] = MISSING
-    """Names of the reference tag primitives for generating state commands."""
-
-    tag_ids: list[int] = MISSING
-    """Corresponding IDs to the reference tag primitives of tag_prim_names."""
+    ref_prim_names: tuple[str, str] = MISSING
+    """Names of the two reference primitives for generating target poses."""
 
     pose_ref_prim_name: str = MISSING
     """Name of the reference primitive for which original state commands are generated."""
 
     traj_command_name: str = MISSING
     """Name of the trajectory command generator for determining the original target state."""
+
+    binary_command_name: str = MISSING
+    """Name of the binary command generator for determining the reference primitive."""
 
     def __post_init__(self):
         """Post initialization."""

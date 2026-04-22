@@ -1,13 +1,13 @@
 from .binary_command import BinaryCommand
-from .commands_cfg import BinaryCommandCfg, TagTrajCommandCfg, TrajSmCommandCfg
-from .tag_traj_command import TagTrajCommand
+from .commands_cfg import BinaryCommandCfg, TrajSmCommandCfg, VsTrajCommandCfg
 from .traj_sm_command import TrajSmCommand
+from .vs_traj_command import VsTrajCommand
 
 __all__ = [
     "BinaryCommand",
     "BinaryCommandCfg",
-    "TagTrajCommand",
-    "TagTrajCommandCfg",
     "TrajSmCommand",
     "TrajSmCommandCfg",
+    "VsTrajCommand",
+    "VsTrajCommandCfg",
 ]

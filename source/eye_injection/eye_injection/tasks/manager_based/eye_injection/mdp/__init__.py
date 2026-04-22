@@ -10,10 +10,10 @@ from isaaclab.envs.mdp import *  # noqa: F401, F403
 from .commands import (
     BinaryCommand,
     BinaryCommandCfg,
-    TagTrajCommand,
-    TagTrajCommandCfg,
     TrajSmCommand,
     TrajSmCommandCfg,
+    VsTrajCommand,
+    VsTrajCommandCfg,
 )
 from .errors import orientation_command_error, position_command_error, position_command_error_tanh
 from .events import apply_external_gravity_force
@@ -22,10 +22,10 @@ from .rewards import command_error_staged
 __all__ = [
     "BinaryCommand",
     "BinaryCommandCfg",
-    "TagTrajCommand",
-    "TagTrajCommandCfg",
     "TrajSmCommand",
     "TrajSmCommandCfg",
+    "VsTrajCommand",
+    "VsTrajCommandCfg",
     "orientation_command_error",
     "position_command_error",
     "position_command_error_tanh",
