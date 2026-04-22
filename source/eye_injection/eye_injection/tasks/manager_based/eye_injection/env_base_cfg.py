@@ -85,9 +85,7 @@ class EyeInjectionSceneBaseCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot/base_link",
         visualizer_cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer"),
         target_frames=[
-            FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/wrist_3_link", name="end_effector"
-            )
+            FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/tcp", name="end_effector")
         ],
         debug_vis=False,
     )
@@ -150,7 +148,7 @@ class CommandsBaseCfg:
     # Trajectory SM command (not observable to agent)
     target_traj = mdp.TrajSmCommandCfg(
         asset_name="robot",
-        body_name="wrist_3_link",
+        body_name="tcp",
         target_prim_names=(
             "/World/envs/env_.*/Bed/Person/Person/Root/EyeLeft",
             "/World/envs/env_.*/Bed/Person/Person/Root/EyeRight",
@@ -159,8 +157,8 @@ class CommandsBaseCfg:
         binary_command_name="target_eye",
         motion_cfg=mdp.TrajSmCommandCfg.MotionCfg(
             pose_tol=(0.1, 0.1),
-            target_offset=0.3,
-            approach_offset=0.6,
+            target_offset=0.1,
+            approach_offset=0.4,
             approach_vel=0.05,
             stationary_time=4.0,
             retreat_vel=0.05,
