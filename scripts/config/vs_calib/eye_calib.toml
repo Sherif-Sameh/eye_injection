@@ -1,14 +1,14 @@
 ### Environment configuration for eye calibration ###
 
 # Environment name
-task_name = "Isaac-Eye-Injection-Vs-Eye-v0"
+task_name = "Isaac-Eye-Injection-Vs-v0"
 
 
 # Environment configuration
 # General settings
 [env]
 seed = 0
-episode_length_s = 50.0
+episode_length_s = 150.0
 decimation = 2
 
 
