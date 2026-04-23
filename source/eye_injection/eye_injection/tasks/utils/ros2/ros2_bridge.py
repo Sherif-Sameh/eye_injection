@@ -13,6 +13,7 @@ from geometry_msgs.msg import PoseStamped
 from gymnasium.spaces import Dict
 from isaacsim.ros2.bridge import read_camera_info
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Empty
 from trajectory_msgs.msg import JointTrajectory
@@ -65,7 +66,7 @@ class IsaacLabRos2Bridge(Node):
         # Publishers
         self._setup_command_publsher(env)
         self._pub_obs_js = self.create_publisher(JointState, "/isaaclab/joint_states", 0)
-        self._pub_rst = self.create_publisher(Empty, "/isaaclab/reset", 0)
+        self._pub_rst = self.create_publisher(Empty, "/isaaclab/reset", 1)
 
         self.has_traj_cmd = "target_traj" in env.command_manager.active_terms
         if self.has_traj_cmd:
@@ -244,7 +245,9 @@ class IsaacLabRos2Bridge(Node):
             cls = PoseStamped
             fn = self._publish_commands_vs
         self._prev_cmd = None
-        self._pub_cmd = self.create_publisher(cls, "/isaaclab/command", 1)
+        self._pub_cmd = self.create_publisher(
+            cls, "/isaaclab/command", QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE)
+        )
         self._pub_cmd_fn = fn
 
     def _publish_commands_default(self, cmd: Tensor) -> None:
