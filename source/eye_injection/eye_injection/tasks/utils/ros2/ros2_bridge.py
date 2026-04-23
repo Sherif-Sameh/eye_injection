@@ -9,17 +9,13 @@ import omni.replicator.core as rep
 import omni.syntheticdata._syntheticdata as sd
 import torch
 from example_interfaces.msg import Float32MultiArray
-from geometry_msgs.msg import PoseStamped, Transform, Twist
+from geometry_msgs.msg import PoseStamped
 from gymnasium.spaces import Dict
 from isaacsim.ros2.bridge import read_camera_info
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Empty
-from trajectory_msgs.msg import (
-    JointTrajectory,
-    MultiDOFJointTrajectory,
-    MultiDOFJointTrajectoryPoint,
-)
+from trajectory_msgs.msg import JointTrajectory
 
 from eye_injection.tasks.utils.ros2 import actions
 
@@ -48,7 +44,7 @@ class IsaacLabRos2Bridge(Node):
         Extroceptive observations (optional): Camera observations to be published as an Image message.
 
     *: This the default case. For the `VsTrajCommand` command if it exists, they'll be published
-    as a MultiDOFJointTrajectory for more clarity. Refer to `_publish_commands_vs()` for msg details.
+    as a PoseStamped for more clarity. Refer to `_publish_commands_vs()` for msg details.
 
     Meanwhile, actions are expected to be published through the JointTrajectory message interface.
 
@@ -113,7 +109,9 @@ class IsaacLabRos2Bridge(Node):
         assert cmd.dtype == torch.float32
         assert cmd.ndim == 2
         cmd = cmd[0].cpu()
-        self._pub_cmd_fn(cmd)
+        if self._prev_cmd is None or not torch.allclose(cmd, self._prev_cmd):
+            self._pub_cmd_fn(cmd)
+            self._prev_cmd = cmd.clone()
 
     def publish_observations_jointstate(self, obs: Tensor) -> None:
         """Publish joint state observations to ROS 2 topic of type JointState.
@@ -162,6 +160,7 @@ class IsaacLabRos2Bridge(Node):
         """Publish reset signal and reset camera info publisher if available."""
         msg = Empty()
         self._pub_rst.publish(msg)
+        self._prev_cmd = None
         if hasattr(self, "_writer_ci"):
             self._setup_camera_info_publisher(env)
 
@@ -242,7 +241,7 @@ class IsaacLabRos2Bridge(Node):
             cls = Float32MultiArray
             fn = self._publish_commands_default
         else:
-            cls = MultiDOFJointTrajectory
+            cls = PoseStamped
             fn = self._publish_commands_vs
         self._prev_cmd = None
         self._pub_cmd = self.create_publisher(cls, "/isaaclab/command", 1)
@@ -259,37 +258,21 @@ class IsaacLabRos2Bridge(Node):
         self._pub_cmd.publish(msg)
 
     def _publish_commands_vs(self, cmd: Tensor) -> None:
-        """Publish state command to ROS 2 topic of type MultiDOFJointTrajectory.
-
-        **Note**: In this case, only a single "joint" exists. This msg type is the closest thing to
-        a CartesianTrajectory msg similar to the JointTrajectory msg from the standard packages
-        available for ROS 2 within IsaacSim.
+        """Publish pose command to ROS 2 topic of type PoseStamped.
 
         Args:
             cmd: Tensor containing the latest state commands to publish. Shape is (13,).
         """
-        msg = MultiDOFJointTrajectory()
+        msg = PoseStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.joint_names.append("0")
 
-        t = Transform()
-        t.translation.x = float(cmd[0])
-        t.translation.y = float(cmd[1])
-        t.translation.z = float(cmd[2])
-        t.rotation.w = float(cmd[3])
-        t.rotation.x = float(cmd[4])
-        t.rotation.y = float(cmd[5])
-        t.rotation.z = float(cmd[6])
-
-        tw = Twist()
-        tw.linear.x = float(cmd[7])
-        tw.linear.y = float(cmd[8])
-        tw.linear.z = float(cmd[9])
-        tw.angular.x = float(cmd[10])
-        tw.angular.y = float(cmd[11])
-        tw.angular.z = float(cmd[12])
-
-        msg.points.append(MultiDOFJointTrajectoryPoint(transforms=[t], velocities=[tw]))
+        msg.pose.position.x = float(cmd[0])
+        msg.pose.position.y = float(cmd[1])
+        msg.pose.position.z = float(cmd[2])
+        msg.pose.orientation.w = float(cmd[3])
+        msg.pose.orientation.x = float(cmd[4])
+        msg.pose.orientation.y = float(cmd[5])
+        msg.pose.orientation.z = float(cmd[6])
         self._pub_cmd.publish(msg)
 
     def _setup_observations_image_publisher(self, env: ManagerBasedRLEnv) -> None:
