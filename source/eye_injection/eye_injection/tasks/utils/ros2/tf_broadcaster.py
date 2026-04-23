@@ -151,12 +151,16 @@ class IsaacLabTFBroadcaster(Node):
             A list containing the two transforms of each eye wrt to the robot's base_link frame.
         """
         # Retrieve relative eye poses from environment
-        eye_left = get_prim_relative_pose(
-            "/World/envs/.*/.*/.*/.*/.*/EyeLeft", "/World/envs/.*/Robot/base_link"
-        )[0]
-        eye_right = get_prim_relative_pose(
-            "/World/envs/.*/.*/.*/.*/.*/EyeRight", "/World/envs/.*/Robot/base_link"
-        )[0]
+        try:
+            eye_left = get_prim_relative_pose(
+                "/World/envs/.*/.*/.*/.*/.*/EyeLeft", "/World/envs/.*/Robot/base_link"
+            )[0]
+            eye_right = get_prim_relative_pose(
+                "/World/envs/.*/.*/.*/.*/.*/EyeRight", "/World/envs/.*/Robot/base_link"
+            )[0]
+        except AssertionError as e:
+            print(f"Could not retreive eye static transforms: {e}")
+            return []
 
         # Setup transformation objects
         transforms = []
