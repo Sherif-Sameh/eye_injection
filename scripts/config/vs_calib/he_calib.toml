@@ -8,7 +8,7 @@ task_name = "Isaac-Eye-Injection-Vs-Calib-v0"
 # General settings
 [env]
 seed = 0
-episode_length_s = 50.0
+episode_length_s = 75.0
 decimation = 2
 
 

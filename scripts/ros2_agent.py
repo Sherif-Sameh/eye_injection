@@ -93,6 +93,8 @@ def main():
         # run everything in inference mode
         with torch.inference_mode():
             # publish commands, observations, pose errors and transforms to ROS 2
+            tf_broadcaster_node.make_robot_transforms(env.unwrapped)
+            tf_broadcaster_node.make_tag_transforms(env.unwrapped, obs["policy_cmd"])
             bridge_node.publish_commands(obs["policy_cmd"])
             bridge_node.publish_observations_jointstate(obs["policy_prop"])
             bridge_node.publish_pose_error(env.unwrapped)
@@ -100,8 +102,6 @@ def main():
                 n_runs_left -= 1
                 bridge_node.reset(env.unwrapped)
                 tf_broadcaster_node.make_static_transforms(env.unwrapped)
-            tf_broadcaster_node.make_robot_transforms(env.unwrapped)
-            tf_broadcaster_node.make_tag_transforms(env.unwrapped, obs["policy_cmd"])
 
             # update ROS to check for published actions
             rclpy.spin_once(bridge_node, timeout_sec=0)
