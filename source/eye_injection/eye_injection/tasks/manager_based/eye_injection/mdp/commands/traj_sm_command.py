@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Sequence
 import torch
 import warp as wp
 from isaaclab.managers import CommandTerm
+from isaaclab.markers import VisualizationMarkers
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -199,6 +200,41 @@ class TrajSmCommand(CommandTerm):
             ],
             device=self.device,
         )
+
+    def _set_debug_vis_impl(self, debug_vis: bool) -> None:
+        """Set debug visualization into visualization objects."""
+        # create markers if necessary for the first time
+        if debug_vis:
+            if not hasattr(self, "goal_pose_visualizer"):
+                # -- goal pose
+                self.goal_pose_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
+                # -- current body pose
+                self.current_pose_visualizer = VisualizationMarkers(
+                    self.cfg.current_pose_visualizer_cfg
+                )
+            # set their visibility to true
+            self.goal_pose_visualizer.set_visibility(True)
+            self.current_pose_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "goal_pose_visualizer"):
+                self.goal_pose_visualizer.set_visibility(False)
+                self.current_pose_visualizer.set_visibility(False)
+
+    def _debug_vis_callback(self, event):
+        """Callback for debug visualization."""
+        # check if robot is initialized
+        # note: this is needed in-case the robot is de-initialized. we can't access the data
+        if not self.robot.is_initialized:
+            return
+        # update the markers
+        # -- goal pose
+        goal_pose_w = utils.get_combined_pose(
+            self.robot.data.root_link_pose_w, self.command[:, 1:8]
+        )
+        self.goal_pose_visualizer.visualize(goal_pose_w[:, :3], goal_pose_w[:, 3:])
+        # -- current body pose
+        body_link_pose_w = self.robot.data.body_link_pose_w[:, self.body_idx]
+        self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:])
 
 
 # region Warp SM

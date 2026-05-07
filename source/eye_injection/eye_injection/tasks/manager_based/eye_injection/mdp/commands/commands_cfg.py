@@ -1,6 +1,8 @@
 from dataclasses import MISSING
 
 from isaaclab.managers import CommandTermCfg
+from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.utils import configclass
 
 from .binary_command import BinaryCommand
@@ -67,6 +69,20 @@ class TrajSmCommandCfg(CommandTermCfg):
 
     motion_cfg: MotionCfg = MISSING
     """Motion configuration."""
+
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
+        prim_path="/Visuals/Command/goal_pose"
+    )
+    """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""
+
+    current_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
+        prim_path="/Visuals/Command/body_pose"
+    )
+    """The configuration for the current pose visualization marker. Defaults to FRAME_MARKER_CFG."""
+
+    # Set the scale of the visualization markers to (0.04, 0.04, 0.04)
+    goal_pose_visualizer_cfg.markers["frame"].scale = (0.04, 0.04, 0.04)
+    current_pose_visualizer_cfg.markers["frame"].scale = (0.04, 0.04, 0.04)
 
     def __post_init__(self):
         """Post initialization."""
