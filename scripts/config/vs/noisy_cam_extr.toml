@@ -24,6 +24,15 @@ num_envs = 1
 env_spacing = 5.0
 replicate_physics = false
 
+# Robot configuration
+[env.scene.robot.init_state.joint_pos]
+shoulder_pan_joint = 0.813
+shoulder_lift_joint = -1.268
+elbow_joint = 1.629
+wrist_1_joint = -1.931
+wrist_2_joint = -1.572
+wrist_3_joint = 0.813
+
 # Camera configuration
 [env.scene.camera]
 update_period = 0.1
@@ -70,8 +79,8 @@ prob_1 = 0.0  # fixed to left-eye
 
 [env.commands.target_traj.motion_cfg]
 pose_tol = [0.02, 0.05]
-target_offset = 0.075
-approach_offset = 0.325   
+target_offset = 0.025
+approach_offset = 0.275   
 approach_vel = 0.05
 stationary_time = 4.0
 retreat_vel = 0.05

@@ -13,7 +13,7 @@ from geometry_msgs.msg import PoseStamped
 from gymnasium.spaces import Dict
 from isaacsim.ros2.bridge import read_camera_info
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Empty
 from trajectory_msgs.msg import JointTrajectory
@@ -246,7 +246,13 @@ class IsaacLabRos2Bridge(Node):
             fn = self._publish_commands_vs
         self._prev_cmd = None
         self._pub_cmd = self.create_publisher(
-            cls, "/isaaclab/command", QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE)
+            cls,
+            "/isaaclab/command",
+            QoSProfile(
+                depth=1,
+                reliability=ReliabilityPolicy.RELIABLE,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            ),
         )
         self._pub_cmd_fn = fn
 
