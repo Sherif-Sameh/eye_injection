@@ -8,7 +8,7 @@ task_name = "Isaac-Eye-Injection-Vs-v0"
 # General settings
 [env]
 seed = 0
-episode_length_s = 25.0
+episode_length_s = 40.0
 decimation = 2
 
 
@@ -80,9 +80,10 @@ prob_1 = 0.0  # fixed to left-eye
 [env.commands.target_traj.motion_cfg]
 pose_tol = [0.02, 0.05]
 target_offset = 0.025
+setup_time = 8.0
 approach_offset = 0.275   
 approach_vel = 0.05
-stationary_time = 4.0
+stationary_time = 8.0
 retreat_vel = 0.05
 
 

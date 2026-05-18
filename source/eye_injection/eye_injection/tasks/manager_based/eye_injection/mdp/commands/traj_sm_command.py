@@ -79,6 +79,7 @@ class TrajSmCommand(CommandTerm):
         self.tgt_ee_poses = [p[:, [0, 1, 2, 4, 5, 6, 3]] for p in self.tgt_ee_poses]
 
         # calculate wait times for each state
+        stp_time = mtn_cfg.setup_time
         apr_time = (mtn_cfg.approach_offset - mtn_cfg.target_offset) / mtn_cfg.approach_vel
         hld_time = mtn_cfg.stationary_time
         rtr_time = (mtn_cfg.approach_offset - mtn_cfg.target_offset) / mtn_cfg.retreat_vel
@@ -91,7 +92,7 @@ class TrajSmCommand(CommandTerm):
         self.apr_ee_pose = torch.zeros((env.num_envs, 7), device=self.device)
         self.tgt_ee_pose = torch.zeros((env.num_envs, 7), device=self.device)
         self.state_wait_time = torch.tensor(
-            [0.0, apr_time, hld_time, rtr_time, 0.0], device=self.device
+            [stp_time, apr_time, hld_time, rtr_time, 0.0], device=self.device
         )
         self.state_z_vel = torch.tensor(
             [0.0, mtn_cfg.approach_vel, 0.0, -mtn_cfg.retreat_vel, 0.0], device=self.device
@@ -298,8 +299,11 @@ def infer_state_machine(
     # decide next state
     if state == TrajSmState.Setup:
         des_ee_pose[tid] = apr_ee_pose[tid]
-        # check for pose convergence
-        if is_pose_converged(ee_pose[tid], des_ee_pose[tid], ttol, rtol):
+        # check for pose convergence and set time
+        if (
+            is_pose_converged(ee_pose[tid], des_ee_pose[tid], ttol, rtol)
+            and sm_wait_time[tid] >= state_wait_time[state]
+        ):
             # move to next state and reset wait time
             sm_state[tid] = TrajSmState.Approach
             sm_wait_time[tid] = 0.0
