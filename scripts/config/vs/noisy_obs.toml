@@ -24,15 +24,6 @@ num_envs = 1
 env_spacing = 5.0
 replicate_physics = false
 
-# Robot configuration
-[env.scene.robot.init_state.joint_pos]
-shoulder_pan_joint = 0.813
-shoulder_lift_joint = -1.268
-elbow_joint = 1.629
-wrist_1_joint = -1.931
-wrist_2_joint = -1.572
-wrist_3_joint = 0.813
-
 # Camera configuration
 [env.scene.camera]
 update_period = 0.1
@@ -67,16 +58,15 @@ pos = [-0.145, 0.65, 0.794]
 
 # Observations configuration
 [env.observations.policy_prop.joint_pos.noise]
-noise_class = "UniformNoiseCfg"
+noise_class = "ConstantNoiseCfg"
 [env.observations.policy_prop.joint_pos.noise.parameters]
-n_min = -0.035
-n_max = 0.035
+bias = [0.08726, 0.08726, -0.08726, -0.08726, 0.08726, -0.08726]
 
 [env.observations.policy_prop.joint_vel.noise]
 noise_class = "UniformNoiseCfg"
 [env.observations.policy_prop.joint_vel.noise.parameters]
-n_min = -0.075
-n_max = 0.075
+n_min = -0.0
+n_max = 0.0
 
 
 # Commands configuration
@@ -84,13 +74,11 @@ n_max = 0.075
 prob_1 = 0.0  # fixed to left-eye
 
 [env.commands.target_traj.motion_cfg]
-pose_tol = [0.02, 0.05]
-target_offset = 0.025
-setup_time = 8.0
+pose_tol = [0.01, 0.05]
+target_offset = 0.075
+setup_time = 0.0
 approach_offset = 0.275   
-approach_vel = 0.05
-stationary_time = 8.0
-retreat_vel = 0.05
+stationary_time = 4.0
 
 
 # Events configuration
