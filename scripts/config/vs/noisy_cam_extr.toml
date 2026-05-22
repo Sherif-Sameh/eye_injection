@@ -24,15 +24,6 @@ num_envs = 1
 env_spacing = 5.0
 replicate_physics = false
 
-# Robot configuration
-[env.scene.robot.init_state.joint_pos]
-shoulder_pan_joint = 0.813
-shoulder_lift_joint = -1.268
-elbow_joint = 1.629
-wrist_1_joint = -1.931
-wrist_2_joint = -1.572
-wrist_3_joint = 0.813
-
 # Camera configuration
 [env.scene.camera]
 update_period = 0.1
@@ -78,13 +69,11 @@ noise_class = "ConstantNoiseCfg"
 prob_1 = 0.0  # fixed to left-eye
 
 [env.commands.target_traj.motion_cfg]
-pose_tol = [0.02, 0.05]
-target_offset = 0.025
-setup_time = 8.0
+pose_tol = [0.01, 0.05]
+target_offset = 0.075
+setup_time = 0.0
 approach_offset = 0.275   
-approach_vel = 0.05
-stationary_time = 8.0
-retreat_vel = 0.05
+stationary_time = 4.0
 
 
 # Events configuration
@@ -103,10 +92,9 @@ distribution = "uniform"
 
 # Camera extrinsics noise configuration
 [tf_broadcaster.noise]
-noise_class = "UniformNoiseCfg"
+noise_class = "ConstantNoiseCfg"
 [tf_broadcaster.noise.parameters]
-n_min = [-0.015, -0.015, -0.015, -0.035, -0.035, -0.035]
-n_max = [0.015, 0.015, 0.015, 0.035, 0.035, 0.035]
+bias = [0.005, -0.005, 0.005, 0.01745, 0.01745, -0.01745]
 
 
 # Camera intrinsics noise configuration (without noise)
