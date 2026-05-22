@@ -61,14 +61,8 @@ class TrajSmCommandCfg(CommandTermCfg):
         setup_time: float = MISSING
         """Stationary time at the approach pose (in sec)."""
 
-        approach_vel: float = MISSING
-        """Approach velocity along the target's Z-axis (in m/s)."""
-
         stationary_time: float = MISSING
         """Stationary time at the target pose (in sec)."""
-
-        retreat_vel: float = MISSING
-        """Retreat velocity along the target's negative Z-axis (in m/s)."""
 
     motion_cfg: MotionCfg = MISSING
     """Motion configuration."""

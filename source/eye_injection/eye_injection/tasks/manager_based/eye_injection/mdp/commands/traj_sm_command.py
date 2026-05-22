@@ -37,7 +37,6 @@ class TrajSmCommand(CommandTerm):
     2) Approach (moving linearly along the z-axis at a fixed speed).
     3) Hold (remain stationary at the target pose for a certain period of time).
     4) Retreat (moving linearly along the negative z-axis at a fixed speed).
-    5) Done (remain stationary at the final pose until timeout).
 
     **Note:** All poses are assumed to be relative to the robot's root body and **not** the world
     frame.
@@ -80,9 +79,7 @@ class TrajSmCommand(CommandTerm):
 
         # calculate wait times for each state
         stp_time = mtn_cfg.setup_time
-        apr_time = (mtn_cfg.approach_offset - mtn_cfg.target_offset) / mtn_cfg.approach_vel
         hld_time = mtn_cfg.stationary_time
-        rtr_time = (mtn_cfg.approach_offset - mtn_cfg.target_offset) / mtn_cfg.retreat_vel
 
         # initialize state machine
         self.sm_dt = torch.full((env.num_envs,), self.dt, device=self.device)
@@ -91,12 +88,8 @@ class TrajSmCommand(CommandTerm):
         self.des_ee_pose = torch.zeros((env.num_envs, 7), device=self.device)
         self.apr_ee_pose = torch.zeros((env.num_envs, 7), device=self.device)
         self.tgt_ee_pose = torch.zeros((env.num_envs, 7), device=self.device)
-        self.state_wait_time = torch.tensor(
-            [stp_time, apr_time, hld_time, rtr_time, 0.0], device=self.device
-        )
-        self.state_z_vel = torch.tensor(
-            [0.0, mtn_cfg.approach_vel, 0.0, -mtn_cfg.retreat_vel, 0.0], device=self.device
-        )
+        self.state_wait_time = torch.tensor([stp_time, 0.0, hld_time, 0.0], device=self.device)
+
         # convert to warp
         self.sm_dt_wp = wp.from_torch(self.sm_dt, wp.float32)
         self.sm_state_wp = wp.from_torch(self.sm_state, wp.int32)
@@ -124,14 +117,8 @@ class TrajSmCommand(CommandTerm):
         """The current command (state + pose + twist) of each environment. Shape is (num_envs, 14)."""
         # combine state + pose + velocity
         state = self.sm_state[:, None]
-        des_ee_pose = torch.where(
-            (state == TrajSmState.Approach) | (state == TrajSmState.Hold),
-            self.tgt_ee_pose,
-            self.apr_ee_pose,
-        )
-        pose = des_ee_pose[:, [0, 1, 2, 6, 3, 4, 5]]
+        pose = self.des_ee_pose[:, [0, 1, 2, 6, 3, 4, 5]]
         twist = torch.zeros((self.num_envs, 6), device=self.device)
-        twist[:, 2] = self.state_z_vel[self.sm_state]
         return torch.cat([state, pose, twist], dim=-1)
 
     @property
@@ -252,7 +239,6 @@ class TrajSmState:
     Approach = wp.constant(1)
     Hold = wp.constant(2)
     Retreat = wp.constant(3)
-    Done = wp.constant(4)
 
 
 @wp.func
@@ -308,11 +294,9 @@ def infer_state_machine(
             sm_state[tid] = TrajSmState.Approach
             sm_wait_time[tid] = 0.0
     elif state == TrajSmState.Approach:
-        des_ee_pose[tid] = interp_pos(
-            apr_ee_pose[tid], tgt_ee_pose[tid], sm_wait_time[tid] / state_wait_time[state]
-        )
-        # wait for set time
-        if sm_wait_time[tid] >= state_wait_time[state]:
+        des_ee_pose[tid] = tgt_ee_pose[tid]
+        # check for pose convergence
+        if is_pose_converged(ee_pose[tid], des_ee_pose[tid], ttol, rtol):
             # move to next state and reset wait time
             sm_state[tid] = TrajSmState.Hold
             sm_wait_time[tid] = 0.0
@@ -324,15 +308,6 @@ def infer_state_machine(
             sm_state[tid] = TrajSmState.Retreat
             sm_wait_time[tid] = 0.0
     elif state == TrajSmState.Retreat:
-        des_ee_pose[tid] = interp_pos(
-            tgt_ee_pose[tid], apr_ee_pose[tid], sm_wait_time[tid] / state_wait_time[state]
-        )
-        # wait for set time
-        if sm_wait_time[tid] >= state_wait_time[state]:
-            # move to next state and reset wait time
-            sm_state[tid] = TrajSmState.Done
-            sm_wait_time[tid] = 0.0
-    elif state == TrajSmState.Done:
         des_ee_pose[tid] = apr_ee_pose[tid]
         # wait indefinitely
     # increment wait time

@@ -160,9 +160,7 @@ class CommandsBaseCfg:
             target_offset=0.1,
             approach_offset=0.4,
             setup_time=4.0,
-            approach_vel=0.05,
             stationary_time=4.0,
-            retreat_vel=0.05,
         ),
     )
 
